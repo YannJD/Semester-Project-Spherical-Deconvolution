@@ -10,7 +10,7 @@ from dipy.io.image import load_nifti
 from dipy.segment.mask import median_otsu
 from dipy.reconst.mcsd import (auto_response_msmt,
                                mask_for_response_msmt,
-                               response_from_mask_msmt)
+                               response_from_mask_msmt, multi_tissue_basis, _inflate_response, _basic_delta)
 from dipy.segment.tissue import TissueClassifierHMRF
 from dipy.reconst.mcsd import MultiShellDeconvModel, multi_shell_fiber_response
 from dipy.viz import window, actor
@@ -22,7 +22,11 @@ def main():
     sphere = get_sphere('symmetric724')
     data, gtab = load_data()
     response_fun = get_ms_response(data, gtab, sphere)
-    # shm.spherical_harmonics()
+
+    msmt_Y, m, n = multi_tissue_basis(gtab, 8, 2)
+    delta = _basic_delta(response_fun.iso, response_fun.m, response_fun.n, 0., 0.)
+    msmt_H = _inflate_response(response_fun, gtab, n, delta)
+    kernel = msmt_Y * msmt_H
 
 
 def load_data():
