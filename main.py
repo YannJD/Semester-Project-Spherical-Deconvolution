@@ -37,13 +37,33 @@ def main():
     saved_weights = 'model_weights.pth'
     nn_arch = [data.shape[3], 256, 128, int((l_max + 1)*(l_max + 2)/2) + 2]
 
+    sphere = get_sphere('symmetric724')
+
     if pathlib.Path(saved_weights).exists():
         nn_model = sl_nn.sl_nn(nn_arch)
         nn_model.load_state_dict(torch.load(saved_weights))
-        f_sh = compute_fod_sh(nn_model, data, device)
-        return
+        odf_sh = compute_odf_sh(nn_model, data, device)
+        mcsd_odf = shm.sh_to_sf(odf_sh, sphere, l_max)
 
-    sphere = get_sphere('symmetric724')
+        print("ODF")
+        print(mcsd_odf.shape)
+        print(mcsd_odf[40, 40, 0])
+
+        fodf_spheres = actor.odf_slicer(mcsd_odf, sphere=sphere, scale=1,
+                                        norm=False, colormap='plasma')
+
+        interactive = False
+        scene = window.Scene()
+        scene.add(fodf_spheres)
+        scene.reset_camera_tight()
+
+        print('Saving illustration as msdodf.png')
+        window.record(scene, out_path='msdodf.png', size=(600, 600))
+
+        if interactive:
+            window.show(scene)
+
+        return
 
     data_2d = data_to_data_2d(data)
     response_fun = get_ms_response(data, gtab, sphere)
@@ -76,12 +96,12 @@ def main():
     torch.save(nn_model.state_dict(), saved_weights)
 
 
-def compute_fod_sh(nn_model, data, device):
+def compute_odf_sh(nn_model, data, device):
     f_sh = np.ndarray(data.shape[:3], dtype=object)
     for ijk in np.ndindex(data.shape[:3]):
         signal = data[ijk[0], ijk[1], ijk[2], :]
         signal = signal[np.newaxis, ...]
-        f_sh[ijk[0], ijk[1], ijk[2]] = nn_model.evaluate_fod_sh(signal, device)
+        f_sh[ijk[0], ijk[1], ijk[2]] = nn_model.evaluate_odf_sh(signal, device)
     return f_sh
 
 

@@ -27,7 +27,7 @@ class sl_nn(nn.Module):
     def forward(self, x):
         return self.network(x)
 
-    def evaluate_fod_sh(self, signal, device=torch.device("cpu")):
+    def evaluate_odf_sh(self, signal, device=torch.device("cpu")):
         signal = torch.tensor(signal, dtype=torch.float32).to(device)
         self.eval()
         with torch.no_grad():
