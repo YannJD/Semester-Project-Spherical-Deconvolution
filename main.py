@@ -27,12 +27,17 @@ from sl_nn import *
 
 import sl_nn
 
+# TODO: remove useless voxels (use mask)
+# TODO: try to enforce non-negativity
+# TODO: train with phantom (SNR = 30), compare peaks
+
 
 def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     data, gtab = load_data()
     l_max = 8
+
 
     saved_weights = 'model_weights.pth'
     nn_arch = [data.shape[3], 256, 128, int((l_max + 1)*(l_max + 2)/2) + 2]
@@ -42,8 +47,11 @@ def main():
     if pathlib.Path(saved_weights).exists():
         nn_model = sl_nn.sl_nn(nn_arch)
         nn_model.load_state_dict(torch.load(saved_weights))
-        odf_sh = compute_odf_sh(nn_model, data, device)
-        mcsd_odf = shm.sh_to_sf(odf_sh, sphere, l_max)
+        odf_sh = compute_odf_sh(nn_model, data, device, l_max)
+        mcsd_odf = shm.sh_to_sf(odf_sh[:, :, 10:11, 2:odf_sh.shape[3]], sphere, l_max)
+        #csf_odf = shm.sh_to_sf(odf_sh[:, :, :, 0], sphere, 0)
+        #gm_odf = shm.sh_to_sf(odf_sh[:, :, :, 1], sphere, 1)
+        #mcsd_odf = shm.sh_to_sf(wm_odf, sphere, l_max)
 
         print("ODF")
         print(mcsd_odf.shape)
@@ -96,8 +104,8 @@ def main():
     torch.save(nn_model.state_dict(), saved_weights)
 
 
-def compute_odf_sh(nn_model, data, device):
-    f_sh = np.ndarray(data.shape[:3], dtype=object)
+def compute_odf_sh(nn_model, data, device, l_max):
+    f_sh = np.ndarray(data.shape[:3] + (int((l_max + 1)*(l_max + 2)/2) + 2, ), dtype=np.float64)
     for ijk in np.ndindex(data.shape[:3]):
         signal = data[ijk[0], ijk[1], ijk[2], :]
         signal = signal[np.newaxis, ...]
@@ -142,6 +150,7 @@ def load_data():
 
 
 def get_ms_response(data, gtab, sphere):
+    #Todo: return mask and use
     b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
 
     denoised_arr = mppca(data, mask=mask, patch_radius=2)
