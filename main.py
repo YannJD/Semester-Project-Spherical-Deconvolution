@@ -1,10 +1,8 @@
+import os
 import pathlib
 
-import numpy as np
 import dipy.reconst.shm as shm
 import dipy.direction.peaks as dp
-import matplotlib.pyplot as plt
-import torch
 
 from dipy.denoise.localpca import mppca
 from dipy.core.gradients import gradient_table, unique_bvals_tolerance
@@ -22,13 +20,14 @@ from dipy.data import get_sphere, get_fnames
 
 from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
-import torch.nn as nn
 from sl_nn import *
+from dipy.core import geometry as geo
+from dipy.data import default_sphere
+import nibabel as nib
 
 import sl_nn
 
-# TODO: remove useless voxels (use mask)
-# TODO: try to enforce non-negativity
+
 # TODO: train with phantom (SNR = 30), compare peaks
 
 
@@ -36,80 +35,142 @@ def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     data, gtab = load_data()
+    b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
     l_max = 8
 
-
     saved_weights = 'model_weights.pth'
-    nn_arch = [data.shape[3], 256, 128, int((l_max + 1)*(l_max + 2)/2) + 2]
+    #nn_arch = [data.shape[3], 256, 128, int((l_max + 1) * (l_max + 2) / 2) + 2]
+    nn_arch = [data.shape[3], 8192, 4096, 2048, 2048, 2048, int((l_max + 1) * (l_max + 2) / 2) + 2]
 
     sphere = get_sphere('symmetric724')
 
-    if pathlib.Path(saved_weights).exists():
-        nn_model = sl_nn.sl_nn(nn_arch)
-        nn_model.load_state_dict(torch.load(saved_weights))
-        odf_sh = compute_odf_sh(nn_model, data, device, l_max)
-        mcsd_odf = shm.sh_to_sf(odf_sh[:, :, 10:11, 2:odf_sh.shape[3]], sphere, l_max)
-        #csf_odf = shm.sh_to_sf(odf_sh[:, :, :, 0], sphere, 0)
-        #gm_odf = shm.sh_to_sf(odf_sh[:, :, :, 1], sphere, 1)
-        #mcsd_odf = shm.sh_to_sf(wm_odf, sphere, l_max)
+    if not pathlib.Path(saved_weights).exists():
+        response_fun = get_ms_response(data, mask, gtab, sphere)
 
-        print("ODF")
-        print(mcsd_odf.shape)
-        print(mcsd_odf[40, 40, 0])
+        train_network(
+            data,
+            mask,
+            nn_arch,
+            device,
+            gtab,
+            l_max,
+            response_fun,
+            saved_weights
+        )
 
-        fodf_spheres = actor.odf_slicer(mcsd_odf, sphere=sphere, scale=1,
-                                        norm=False, colormap='plasma')
+    mcsd_odf = compute_odf_function(nn_arch, saved_weights, data, mask, device, l_max, sphere)
+    plot_wm_odfs(mcsd_odf[:, :, 10:11, :], sphere)
 
-        interactive = False
-        scene = window.Scene()
-        scene.add(fodf_spheres)
-        scene.reset_camera_tight()
+def convert_to_mrtrix(order):
+    """
+    Returns the linear matrix used to convert coefficients into the mrtrix
+    convention for spherical harmonics.
 
-        print('Saving illustration as msdodf.png')
-        window.record(scene, out_path='msdodf.png', size=(600, 600))
+    Parameters
+    ----------
+    order : int
 
-        if interactive:
-            window.show(scene)
+    Returns
+    -------
+    conversion_matrix : array-like, shape (dim_sh, dim_sh)
+    """
+    dim_sh = int((order + 1) * (order + 2) / 2)
+    conversion_matrix = np.zeros((dim_sh, dim_sh))
+    for j in range(dim_sh):
+        #l = sh_degree(j)
+        m = sh_order(j)
+        if m == 0:
+            conversion_matrix[j, j] = 1
+        else:
+            conversion_matrix[j, j - 2*m] = np.sqrt(2)
+    return conversion_matrix
 
-        return
 
-    data_2d = data_to_data_2d(data)
-    response_fun = get_ms_response(data, gtab, sphere)
-    kernel = torch.tensor(compute_kernel(gtab, l_max, response_fun), dtype=torch.float32)
+def compute_odf_function(nn_arch, saved_weights, data, mask, device, l_max, sphere):
+    nn_model = sl_nn.sl_nn(nn_arch)
+    print(sum([np.prod(p.size()) for p in nn_model.parameters()]))
+    nn_model.load_state_dict(torch.load(saved_weights))
+    odf_sh = compute_odf_sh(nn_model, data, mask, device, l_max)
+    mcsd_odf = shm.sh_to_sf(odf_sh[:, :, :, 2:odf_sh.shape[-1]], sphere, l_max)
+    csf_odf = shm.sh_to_sf(odf_sh[:, :, :, 0], sphere, 0)
+    gm_odf = shm.sh_to_sf(odf_sh[:, :, :, 1], sphere, 1)
 
-    data_2d = torch.tensor(data_2d, dtype=torch.float32)
+    conversion_matrix = convert_to_mrtrix(l_max)
+    fods_img = nib.Nifti1Image(np.dot(mcsd_odf, conversion_matrix.T)
+                               * wm_vf[..., np.newaxis], None)
+    nib.save(fods_img, "fods.nii.gz")
+
+    return mcsd_odf
+
+
+def train_network(data, mask, nn_arch, device, gtab, l_max, response_fun, saved_weights):
+    masked_data = data[mask]
+    # data_2d = data_to_data_2d(masked_data)
+    data_2d = torch.tensor(masked_data, dtype=torch.float32)
     train_data = TensorDataset(data_2d, data_2d)
-    train_loader = DataLoader(train_data, batch_size=1024, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=128, shuffle=True)
 
     nn_model = sl_nn.sl_nn(nn_arch)
     nn_model.to(device)
 
-    loss_fun = nn.MSELoss()
-    optimizer = torch.optim.Adam(nn_model.parameters(), lr=0.001)
+    kernel = compute_kernel(gtab, l_max, response_fun)
+    reg_B = compute_reg_matrix()
+    reg_factor = 0.5
+    loss_fun = sl_nn.ConstrainedMSE(kernel, reg_B, reg_factor, device)
+    optimizer = torch.optim.RMSprop(nn_model.parameters(), lr=0.00001)
     lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-6)
 
     train_model(
         nn_model,
-        kernel,
         device,
         train_loader,
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=10,
+        epochs=40,
         load_best_model=True,
         return_loss_time=False
     )
 
     torch.save(nn_model.state_dict(), saved_weights)
 
+def plot_wm_odfs(mcsd_odf, sphere):
+    print("ODF")
+    print(mcsd_odf.shape)
+    print(mcsd_odf[50, 50, 0])
 
-def compute_odf_sh(nn_model, data, device, l_max):
-    f_sh = np.ndarray(data.shape[:3] + (int((l_max + 1)*(l_max + 2)/2) + 2, ), dtype=np.float64)
+    fodf_spheres = actor.odf_slicer(mcsd_odf, sphere=sphere, scale=1.2,
+                                    norm=False, colormap='plasma')
+
+    interactive = False
+    scene = window.Scene()
+    scene.add(fodf_spheres)
+    scene.reset_camera_tight()
+
+    print('Saving illustration as msdodf.png')
+    window.record(scene, out_path='msdodf.png', size=(1920, 1920), magnification=2)
+
+    if interactive:
+        window.show(scene)
+
+
+def compute_reg_matrix(reg_sphere=default_sphere, iso=2, sh_order=8):
+    r, theta, phi = geo.cart2sphere(*reg_sphere.vertices.T)
+    odf_reg, _, _ = shm.real_sh_descoteaux(sh_order, theta, phi)
+    reg = np.zeros([i + iso for i in odf_reg.shape])
+    reg[:iso, :iso] = np.eye(iso)
+    reg[iso:, iso:] = odf_reg
+    return reg
+
+
+def compute_odf_sh(nn_model, data, mask, device, l_max):
+    f_sh = np.ndarray(data.shape[:3] + (int((l_max + 1) * (l_max + 2) / 2) + 2,), dtype=np.float64)
     for ijk in np.ndindex(data.shape[:3]):
         signal = data[ijk[0], ijk[1], ijk[2], :]
         signal = signal[np.newaxis, ...]
-        f_sh[ijk[0], ijk[1], ijk[2]] = nn_model.evaluate_odf_sh(signal, device)
+        if mask[ijk[0], ijk[1], ijk[2]]:
+            f_sh[ijk[0], ijk[1], ijk[2]] = torch.Tensor.cpu(nn_model.evaluate_odf_sh(signal, device))
+
     return f_sh
 
 
@@ -149,9 +210,24 @@ def load_data():
     return data, gtab
 
 
-def get_ms_response(data, gtab, sphere):
-    #Todo: return mask and use
-    b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+def get_ms_response(data, mask, gtab, sphere):
+    wm_sh = 'wm_sh.csv'
+    gm_sh = 'gm_sh.csv'
+    csf_sh = 'csf_sh.csv'
+
+    ubvals = unique_bvals_tolerance(gtab.bvals)
+
+    if pathlib.Path(wm_sh).exists() and pathlib.Path(gm_sh).exists() and pathlib.Path(csf_sh).exists():
+        response_wm = np.loadtxt(wm_sh, delimiter=',')
+        response_gm = np.loadtxt(gm_sh, delimiter=',')
+        response_csf = np.loadtxt(csf_sh, delimiter=',')
+        response_mcsd = multi_shell_fiber_response(sh_order=8,
+                                                   bvals=ubvals,
+                                                   wm_rf=response_wm,
+                                                   gm_rf=response_gm,
+                                                   csf_rf=response_csf)
+
+        return response_mcsd
 
     denoised_arr = mppca(data, mask=mask, patch_radius=2)
 
@@ -191,7 +267,9 @@ def get_ms_response(data, gtab, sphere):
                                                                      mask_gm,
                                                                      mask_csf)
 
-    ubvals = unique_bvals_tolerance(gtab.bvals)
+    np.savetxt(wm_sh, response_wm, delimiter=',')
+    np.savetxt(gm_sh, response_gm, delimiter=',')
+    np.savetxt(csf_sh, response_csf, delimiter=',')
 
     response_mcsd = multi_shell_fiber_response(sh_order=8,
                                                bvals=ubvals,

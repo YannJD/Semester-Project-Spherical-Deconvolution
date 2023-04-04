@@ -5,15 +5,36 @@ import time
 from cmath import inf
 
 
+class ConstrainedMSE(nn.Module):
+    def __init__(self, kernel, reg_B, reg_factor, device):
+        super(ConstrainedMSE, self).__init__()
+        self.kernel = torch.tensor(kernel, dtype=torch.float32)
+        self.reg_B = torch.tensor(reg_B, dtype=torch.float32)
+        self.reg_factor = reg_factor
+        self.device = device
+
+    def forward(self, output, target):
+        criterion = nn.MSELoss()
+        H_f = torch.matmul(self.kernel.to(self.device), output.t().to(self.device)).t()
+        loss = criterion(H_f, target)
+        B_f = torch.matmul(self.reg_B.to(self.device), output.t().to(self.device)).t()
+        B_f = torch.minimum(B_f, torch.zeros(B_f.size()).to(self.device))
+        neg_constraint = torch.sum(B_f)
+        loss += self.reg_factor * torch.square(neg_constraint)
+        return loss
+
+
 def create_nn_arch(arch: np.ndarray):
     layers = []
 
     for in_size, out_size in zip(arch[:-2], arch[1:-1]):
         layers.append(nn.Linear(in_size, out_size))
+        #layers.append(nn.ReLU())
         layers.append(nn.BatchNorm1d(out_size))
         layers.append(nn.Sigmoid())
 
     layers.append(nn.Linear(arch[-2], arch[-1]))
+    #layers.append(nn.ReLU())
     layers.append(nn.Sigmoid())
 
     return nn.Sequential(*layers)
@@ -37,7 +58,6 @@ class sl_nn(nn.Module):
 
 def train_model(
         model,
-        kernel,
         device,
         train_loader,
         loss_fun,
@@ -59,10 +79,10 @@ def train_model(
             xb = xb.to(device)
             yb = yb.to(device)
 
-            f_sh = model(xb)
+            f_sh = model(xb).to(device)
 
             loss_batch = []
-            loss = loss_fun(yb, torch.matmul(kernel, f_sh.t()).t())
+            loss = loss_fun(f_sh, yb)
             loss_batch.append(loss.detach())
 
             optimizer.zero_grad()
