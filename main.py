@@ -3,6 +3,7 @@ import pathlib
 
 import dipy.reconst.shm as shm
 import dipy.direction.peaks as dp
+import torch.optim
 
 from dipy.denoise.localpca import mppca
 from dipy.core.gradients import gradient_table, unique_bvals_tolerance
@@ -40,7 +41,7 @@ def main():
 
     saved_weights = 'model_weights.pth'
     #nn_arch = [data.shape[3], 256, 128, int((l_max + 1) * (l_max + 2) / 2) + 2]
-    nn_arch = [data.shape[3], 2048, 2048, 2048, 2048, 2048, 2048, int((l_max + 1) * (l_max + 2) / 2) + 2]
+    nn_arch = [data.shape[3], 256, 128, int((l_max + 1) * (l_max + 2) / 2) + 2]
 
     sphere = get_sphere('symmetric724')
 
@@ -111,7 +112,7 @@ def train_network(data, mask, nn_arch, device, gtab, l_max, response_fun, saved_
     # data_2d = data_to_data_2d(masked_data)
     data_2d = torch.tensor(masked_data, dtype=torch.float32)
     train_data = TensorDataset(data_2d, data_2d)
-    train_loader = DataLoader(train_data, batch_size=128, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
 
     nn_model = sl_nn.sl_nn(nn_arch)
     nn_model.to(device)
@@ -120,13 +121,13 @@ def train_network(data, mask, nn_arch, device, gtab, l_max, response_fun, saved_
     B = compute_reg_matrix()
     B_t = B.transpose()
     M = np.linalg.inv(B_t @ B) @ B_t
-    loss_fun = sl_nn.ConstrainedMSE(kernel, B, M, device)
+    #loss_fun = sl_nn.ConstrainedMSE(kernel, B, M, device)
 
-    #reg_factor = 1
-    #loss_fun = sl_nn.RegularizedMSE(kernel, reg_B, reg_factor, device)
+    reg_factor = 1
+    loss_fun = sl_nn.RegularizedMSE(kernel, B, reg_factor, device)
 
-    optimizer = torch.optim.RMSprop(nn_model.parameters(), lr=0.00001)
-    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-7)
+    optimizer = torch.optim.RMSprop(nn_model.parameters(), lr=0.001)
+    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-10)
 
     train_model(
         nn_model,
@@ -135,7 +136,7 @@ def train_network(data, mask, nn_arch, device, gtab, l_max, response_fun, saved_
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=20,
+        epochs=50,
         load_best_model=True,
         return_loss_time=False
     )

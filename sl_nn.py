@@ -48,13 +48,13 @@ def create_nn_arch(arch: np.ndarray):
 
     for in_size, out_size in zip(arch[:-2], arch[1:-1]):
         layers.append(nn.Linear(in_size, out_size))
-        #layers.append(nn.ReLU())
         layers.append(nn.BatchNorm1d(out_size))
-        layers.append(nn.Sigmoid())
+        layers.append(nn.ReLU())
+        #layers.append(nn.Sigmoid())
 
     layers.append(nn.Linear(arch[-2], arch[-1]))
     #layers.append(nn.ReLU())
-    layers.append(nn.Sigmoid())
+    #layers.append(nn.Sigmoid())
 
     return nn.Sequential(*layers)
 
@@ -110,7 +110,7 @@ def train_model(
 
         loss_epoch.append(sum(loss_batch) / len(loss_batch))
         print(
-            f"Epoch {epoch + 1:2}:   learning rate = {optimizer.param_groups[0]['lr']:>0.6f}   average loss = {loss_epoch[-1]:0.6f}")
+            f"Epoch {epoch + 1:2}:   learning rate = {optimizer.param_groups[0]['lr']:>0.10f}   average loss = {loss_epoch[-1]:0.6f}")
         lr_sched.step(loss)
 
         if loss_epoch[-1] < best_loss:
