@@ -40,7 +40,7 @@ def main():
 
     saved_weights = 'model_weights.pth'
     #nn_arch = [data.shape[3], 256, 128, int((l_max + 1) * (l_max + 2) / 2) + 2]
-    nn_arch = [data.shape[3], 8192, 4096, 2048, 2048, 2048, int((l_max + 1) * (l_max + 2) / 2) + 2]
+    nn_arch = [data.shape[3], 2048, 2048, 2048, 2048, 2048, 2048, int((l_max + 1) * (l_max + 2) / 2) + 2]
 
     sphere = get_sphere('symmetric724')
 
@@ -76,29 +76,32 @@ def convert_to_mrtrix(order):
     """
     dim_sh = int((order + 1) * (order + 2) / 2)
     conversion_matrix = np.zeros((dim_sh, dim_sh))
+    """
     for j in range(dim_sh):
         #l = sh_degree(j)
         m = sh_order(j)
         if m == 0:
             conversion_matrix[j, j] = 1
         else:
-            conversion_matrix[j, j - 2*m] = np.sqrt(2)
+            conversion_matrix[j, j - 2*m] = np.sqrt(2)"""
     return conversion_matrix
 
 
 def compute_odf_function(nn_arch, saved_weights, data, mask, device, l_max, sphere):
     nn_model = sl_nn.sl_nn(nn_arch)
-    print(sum([np.prod(p.size()) for p in nn_model.parameters()]))
+    print("Number of parameters : ", sum([np.prod(p.size()) for p in nn_model.parameters()]))
     nn_model.load_state_dict(torch.load(saved_weights))
+
     odf_sh = compute_odf_sh(nn_model, data, mask, device, l_max)
     mcsd_odf = shm.sh_to_sf(odf_sh[:, :, :, 2:odf_sh.shape[-1]], sphere, l_max)
-    csf_odf = shm.sh_to_sf(odf_sh[:, :, :, 0], sphere, 0)
-    gm_odf = shm.sh_to_sf(odf_sh[:, :, :, 1], sphere, 1)
+    #csf_odf = shm.sh_to_sf(odf_sh[:, :, :, 0:1], sphere, 0)
+    #gm_odf = shm.sh_to_sf(odf_sh[:, :, :, 1:2], sphere, 1)
 
+    """
     conversion_matrix = convert_to_mrtrix(l_max)
     fods_img = nib.Nifti1Image(np.dot(mcsd_odf, conversion_matrix.T)
                                * wm_vf[..., np.newaxis], None)
-    nib.save(fods_img, "fods.nii.gz")
+    nib.save(fods_img, "fods.nii.gz")"""
 
     return mcsd_odf
 
@@ -114,11 +117,16 @@ def train_network(data, mask, nn_arch, device, gtab, l_max, response_fun, saved_
     nn_model.to(device)
 
     kernel = compute_kernel(gtab, l_max, response_fun)
-    reg_B = compute_reg_matrix()
-    reg_factor = 0.5
-    loss_fun = sl_nn.ConstrainedMSE(kernel, reg_B, reg_factor, device)
+    B = compute_reg_matrix()
+    B_t = B.transpose()
+    M = np.linalg.inv(B_t @ B) @ B_t
+    loss_fun = sl_nn.ConstrainedMSE(kernel, B, M, device)
+
+    #reg_factor = 1
+    #loss_fun = sl_nn.RegularizedMSE(kernel, reg_B, reg_factor, device)
+
     optimizer = torch.optim.RMSprop(nn_model.parameters(), lr=0.00001)
-    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-6)
+    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-7)
 
     train_model(
         nn_model,
@@ -127,12 +135,13 @@ def train_network(data, mask, nn_arch, device, gtab, l_max, response_fun, saved_
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=40,
+        epochs=20,
         load_best_model=True,
         return_loss_time=False
     )
 
     torch.save(nn_model.state_dict(), saved_weights)
+
 
 def plot_wm_odfs(mcsd_odf, sphere):
     print("ODF")

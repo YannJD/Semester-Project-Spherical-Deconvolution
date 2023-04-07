@@ -5,9 +5,9 @@ import time
 from cmath import inf
 
 
-class ConstrainedMSE(nn.Module):
+class RegularizedMSE(nn.Module):
     def __init__(self, kernel, reg_B, reg_factor, device):
-        super(ConstrainedMSE, self).__init__()
+        super(RegularizedMSE, self).__init__()
         self.kernel = torch.tensor(kernel, dtype=torch.float32)
         self.reg_B = torch.tensor(reg_B, dtype=torch.float32)
         self.reg_factor = reg_factor
@@ -22,6 +22,25 @@ class ConstrainedMSE(nn.Module):
         neg_constraint = torch.sum(B_f)
         loss += self.reg_factor * torch.square(neg_constraint)
         return loss
+
+
+class ConstrainedMSE(nn.Module):
+    def __init__(self, kernel, B, M, device):
+        super(ConstrainedMSE, self).__init__()
+        self.kernel = torch.tensor(kernel, dtype=torch.float32)
+        self.B = torch.tensor(B, dtype=torch.float32)
+        self.M = torch.tensor(M, dtype=torch.float32)
+        self.device = device
+
+    def forward(self, output, target):
+        criterion = nn.MSELoss()
+
+        B_f = torch.matmul(self.B.to(self.device), output.t().to(self.device)).t()
+        B_f[B_f < 0] = 0
+        new_f = torch.matmul(self.M.to(self.device), B_f.t())
+        H_f = torch.matmul(self.kernel.to(self.device), new_f).t()
+
+        return criterion(H_f, target)
 
 
 def create_nn_arch(arch: np.ndarray):
