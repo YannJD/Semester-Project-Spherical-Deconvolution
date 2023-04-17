@@ -3,6 +3,9 @@ import torch.nn as nn
 import numpy as np
 import time
 from cmath import inf
+from qpth.qp import QPFunction
+from torch.autograd import Variable
+from torch.nn.parameter import Parameter
 
 
 class RegularizedMSE(nn.Module):
@@ -43,12 +46,27 @@ class ConstrainedMSE(nn.Module):
         return criterion(H_f, target)
 
 
+class CustomMSE(nn.Module):
+    def __init__(self, kernel, device):
+        super(CustomMSE, self).__init__()
+        self.kernel = torch.tensor(kernel, dtype=torch.float32)
+        self.device = device
+
+    def forward(self, output, target):
+        criterion = nn.MSELoss()
+
+        H_f = torch.matmul(self.kernel.to(self.device), output.t()).t()
+
+        return Variable(criterion(H_f, target), requires_grad=True)
+
+
 def create_nn_arch(arch: np.ndarray):
     layers = []
 
     for in_size, out_size in zip(arch[:-2], arch[1:-1]):
         layers.append(nn.Linear(in_size, out_size))
         layers.append(nn.BatchNorm1d(out_size))
+        #layers.append(nn.Dropout(p=0.5))
         layers.append(nn.ReLU())
         #layers.append(nn.Sigmoid())
 
@@ -60,11 +78,26 @@ def create_nn_arch(arch: np.ndarray):
 
 
 class sl_nn(nn.Module):
-    def __init__(self, arch):
+    def __init__(self, arch, H, B, M):
         super().__init__()
         self.network = create_nn_arch(arch)
+        self.H = torch.tensor(H, dtype=torch.float32)
+        self.B = torch.tensor(B, dtype=torch.float32)
+        self.M = torch.tensor(M, dtype=torch.float32)
+        self.G = Parameter(torch.tensor(-B, dtype=torch.float32))
+        self.Q = Variable(torch.eye(arch[-1]).cuda())
+        self.h = Parameter(torch.zeros(B.shape[0]).cuda())
 
     def forward(self, x):
+        #p = self.network(x)
+        #e = Variable(torch.Tensor())
+        #[Q, p, G, h, A, b] = [Variable(x.data.double().cuda()) for x in [self.Q, p, self.G, self.h, e, e]]
+        #x = QPFunction(verbose=False)(Q, p, G, h, A, b)
+        #return x.data.float()
+
+        #B_f = torch.matmul(self.B.cuda(), self.network(x).t())
+        #B_f[B_f < 0] = 0
+        #return torch.matmul(self.M.cuda(), B_f).t()
         return self.network(x)
 
     def evaluate_odf_sh(self, signal, device=torch.device("cpu")):

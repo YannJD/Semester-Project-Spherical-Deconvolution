@@ -32,6 +32,8 @@ from dipy.data import get_fnames, default_sphere
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.io.image import load_nifti
 
+from main import save_to_mrtrix_format
+
 hardi_fname, hardi_bval_fname, hardi_bvec_fname = get_fnames('stanford_hardi')
 
 data, affine = load_nifti(hardi_fname)
@@ -228,14 +230,18 @@ csd_model = ConstrainedSphericalDeconvModel(gtab, response)
 For illustration purposes we will fit only a small portion of the data.
 """
 
-data_small = data[20:50, 55:85, 38:39]
-csd_fit = csd_model.fit(data_small)
+#data_small = data[20:50, 55:85, 38:39]
+#csd_fit = csd_model.fit(data_small)
+csd_fit = csd_model.fit(data)
 
 """
 Show the CSD-based ODFs also known as FODFs (fiber ODFs).
 """
+import dipy.reconst.shm as shm
 
 csd_odf = csd_fit.odf(default_sphere)
+odf_sh = shm.sf_to_sh(csd_odf, default_sphere, 8)
+save_to_mrtrix_format(odf_sh, odf_sh, 8, default_sphere, 1)
 
 """
 Here we visualize only a 30x30 region.
