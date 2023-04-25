@@ -14,7 +14,6 @@ from dipy.reconst.dti import fractional_anisotropy
 from dipy.reconst.mcsd import multi_tissue_basis, _basic_delta, _inflate_response, multi_shell_fiber_response, \
     mask_for_response_msmt, response_from_mask_msmt
 from dipy.segment.tissue import TissueClassifierHMRF
-from matplotlib.projections import geo
 
 from mrtrix_functions import nb_coeff, save_to_mrtrix_format
 
@@ -89,7 +88,7 @@ def compute_reg_matrix(reg_sphere=default_sphere, iso=2, sh_order=8):
         r, theta, phi = cart2sphere(sphere.x, sphere.y, sphere.z)
         return shm.real_sh_descoteaux_from_index(m, n, theta[:, None], phi[:, None])
 
-    r, theta, phi = geo.cart2sphere(*reg_sphere.vertices.T)
+    r, theta, phi = cart2sphere(*reg_sphere.vertices.T)
     odf_reg, _, _ = shm.real_sh_descoteaux(sh_order, theta, phi)
     reg = np.zeros([i + iso for i in odf_reg.shape])
     reg[:iso, :iso] = np.eye(iso)

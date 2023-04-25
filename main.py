@@ -19,7 +19,7 @@ from sscsd import *
 def main():
     # Parse command line arguments passed
     data_name, mask_path, l_max, single_fiber = parse_args()
-    data_name = 'ss_csd_files/' + data_name
+    data_name = 'sscsd_output/' + data_name
 
     sphere = get_sphere('symmetric724')
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -32,8 +32,8 @@ def main():
         mask, affine = load_nifti(mask_path)
         mask = mask.astype(bool)
     else:
-        # b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
-        b0_mask, mask = median_otsu(data, median_radius=4, numpass=4, vol_idx=[0, 1])  # TODO: choose parameters
+        b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+        # b0_mask, mask = median_otsu(data, median_radius=4, numpass=4, vol_idx=[0, 1])  # TODO: choose parameters
 
     nb_b0 = np.sum(gtab.bvals == 0)
 
@@ -74,7 +74,7 @@ def main():
     iso = 0 if single_fiber else 2
 
     # Load the MLP weights
-    nn_model = SSCSD.SSCSD(nn_arch, kernel, B, M)
+    nn_model = SSCSD(nn_arch, kernel, B, M)
     print("Number of parameters :", sum([np.prod(p.size()) for p in nn_model.parameters()]))
     nn_model.load_state_dict(torch.load(saved_weights))
 
@@ -174,10 +174,10 @@ def load_data():  # TODO : make different load methods
     bvecs = gtab.bvecs
 
     # sel_b = np.logical_or(np.logical_or(bvals == 0, bvals == 1000), bvals == 2000)
-    # sel_b = np.logical_or(bvals == 0, bvals == 2000)
-    # data = data[..., sel_b]
+    sel_b = np.logical_or(bvals == 0, bvals == 2000)
+    data = data[..., sel_b]
 
-    # gtab = gradient_table(bvals[sel_b], bvecs[sel_b])
+    gtab = gradient_table(bvals[sel_b], bvecs[sel_b])
 
     return data, gtab
 
@@ -226,7 +226,7 @@ def plot_wm_odfs(mcsd_odf, sphere):
     scene.reset_camera_tight()
 
     print('Saving illustration as msdodf.png')
-    window.record(scene, out_path='msdodf.png', size=(1920, 1920), magnification=2)
+    window.record(scene, out_path='sscsd_output/msdodf.png', size=(1920, 1920), magnification=2)
 
     if interactive:
         window.show(scene)
