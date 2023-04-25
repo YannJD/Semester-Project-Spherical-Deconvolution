@@ -3,7 +3,7 @@ from dipy.data import get_sphere
 from dipy.reconst import shm
 import nibabel as nib
 
-from main import convert_to_mrtrix
+from mrtrix_functions import convert_to_mrtrix
 
 
 def main():

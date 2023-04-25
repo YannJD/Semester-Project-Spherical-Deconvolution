@@ -9,6 +9,9 @@ from torch.nn.parameter import Parameter
 
 
 class RegularizedMSE(nn.Module):
+    """
+    Regularized version of the MSE loss for CSD
+    """
     def __init__(self, kernel, reg_B, reg_factor, device):
         super(RegularizedMSE, self).__init__()
         self.kernel = torch.tensor(kernel, dtype=torch.float32)
@@ -18,8 +21,11 @@ class RegularizedMSE(nn.Module):
 
     def forward(self, output, target):
         criterion = nn.MSELoss()
+        # Computes H dot f and standard loss between signal and the result
         H_f = torch.matmul(self.kernel.to(self.device), output.t().to(self.device)).t()
         loss = criterion(H_f, target)
+
+        # Computes the following expression to penalize negative fFODs: loss + lambda * sum(min(B @ f))^2
         B_f = torch.matmul(self.reg_B.to(self.device), output.t().to(self.device)).t()
         B_f = torch.minimum(B_f, torch.zeros(B_f.size()).to(self.device))
         neg_constraint = torch.sum(B_f)
@@ -28,6 +34,9 @@ class RegularizedMSE(nn.Module):
 
 
 class ConstrainedMSE(nn.Module):
+    """
+    Constrained version of the MSE loss for CSD
+    """
     def __init__(self, kernel, B, M, device):
         super(ConstrainedMSE, self).__init__()
         self.kernel = torch.tensor(kernel, dtype=torch.float32)
@@ -47,6 +56,9 @@ class ConstrainedMSE(nn.Module):
 
 
 class CustomMSE(nn.Module):
+    """
+    MSE loss for CSD
+    """
     def __init__(self, kernel, device):
         super(CustomMSE, self).__init__()
         self.kernel = torch.tensor(kernel, dtype=torch.float32)
@@ -55,14 +67,23 @@ class CustomMSE(nn.Module):
     def forward(self, output, target):
         criterion = nn.MSELoss()
 
+        # Computes H dot f
         H_f = torch.matmul(self.kernel.to(self.device), output.t()).t()
 
         return Variable(criterion(H_f, target), requires_grad=True)
 
 
 def create_nn_arch(arch: np.ndarray):
+    """
+    Creates a network architecture.
+
+    :param arch: array
+    :return: the architecture
+    """
+
     layers = []
 
+    # Adds for each network layer the following activation functions
     for in_size, out_size in zip(arch[:-2], arch[1:-1]):
         layers.append(nn.Linear(in_size, out_size))
         layers.append(nn.BatchNorm1d(out_size))
@@ -77,7 +98,10 @@ def create_nn_arch(arch: np.ndarray):
     return nn.Sequential(*layers)
 
 
-class sl_nn(nn.Module):
+class SSCSD(nn.Module):
+    """
+    Self-supervised MLP for CSD fODF estimation
+    """
     def __init__(self, arch, H, B, M):
         super().__init__()
         self.network = create_nn_arch(arch)
@@ -101,6 +125,14 @@ class sl_nn(nn.Module):
         return self.network(x)
 
     def evaluate_odf_sh(self, signal, device=torch.device("cpu")):
+        """
+        Evaluates the fODF SH coefficient from the signal.
+
+        :param signal: 1D array
+        :param device: str
+        :return: the fODF SH coefficients estimation
+        """
+
         signal = torch.tensor(signal, dtype=torch.float32).to(device)
         self.eval()
         with torch.no_grad():
@@ -119,6 +151,21 @@ def train_model(
         load_best_model=True,
         return_loss_time=False
 ):
+    """
+    Train self-supervised MLP.
+
+    :param model: SSCSD MLP
+    :param device: str
+    :param train_loader: DataLoader
+    :param loss_fun: the loss function
+    :param optimizer: the optimizer
+    :param lr_sched: learning rate scheduler
+    :param epochs: the number of epochs, int
+    :param load_best_model: bool
+    :param return_loss_time: bool
+    :return: all the losses, the best epoch and the training time
+    """
+
     start = time.time()
     loss_epoch = []
     best_loss = torch.tensor(inf)

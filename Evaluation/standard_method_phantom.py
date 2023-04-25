@@ -13,9 +13,8 @@ from dipy.reconst.mcsd import MultiShellDeconvModel, multi_shell_fiber_response,
     mask_for_response_msmt
 from dipy.segment.mask import median_otsu
 from dipy.segment.tissue import TissueClassifierHMRF
-from fury import actor, window
 
-from main import load_phantom_data, get_ms_response, convert_to_mrtrix, save_to_mrtrix_format
+from mrtrix_functions import save_to_mrtrix_format
 
 
 def run():
@@ -90,7 +89,7 @@ def run():
 
     save_nifti('standard_odf.nii.gz', mcsd_odf, affine)
 
-    save_to_mrtrix_format(mcsd_fit.all_shm_coeff, mcsd_fit.shm_coeff, l_max, sphere, 3)
+    save_to_mrtrix_format(mcsd_fit.all_shm_coeff, l_max, sphere, 3, 'std_phantom')
 
 
 if __name__ == '__main__':

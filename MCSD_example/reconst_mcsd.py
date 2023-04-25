@@ -297,8 +297,8 @@ call the ``fit`` function to fit one slice of the 3D data and visualize it.
 """
 
 mcsd_model = MultiShellDeconvModel(gtab, response_mcsd)
-#mcsd_fit = mcsd_model.fit(denoised_arr[:, :, 10:11])
-mcsd_fit = mcsd_model.fit(denoised_arr)
+mcsd_fit = mcsd_model.fit(denoised_arr[:, :, 10:11])
+#mcsd_fit = mcsd_model.fit(denoised_arr)
 
 """
 The volume fractions of tissues for each voxel are also accessible, as well as
@@ -313,7 +313,7 @@ csf_sh_coeff = sh_coeff[..., 0]
 gm_sh_coeff = sh_coeff[..., 1]
 wm_sh_coeff = mcsd_fit.shm_coeff
 
-save_to_mrtrix_format(sh_coeff, wm_sh_coeff, 8, sphere, 3)
+#save_to_mrtrix_format(sh_coeff, wm_sh_coeff, 8, sphere, 3)
 
 """
 The model allows to predict a signal from sh coefficients. There are two ways of
@@ -343,7 +343,7 @@ scene.add(fodf_spheres)
 scene.reset_camera_tight()
 
 print('Saving illustration as msdodf.png')
-window.record(scene, out_path='msdodf.png', size=(600, 600))
+window.record(scene, out_path='msdodf.png', size=(1920, 1920), magnification=2)
 
 if interactive:
     window.show(scene)
