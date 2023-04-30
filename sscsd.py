@@ -8,22 +8,23 @@ from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 
 
-class RegularizedMSE(nn.Module):
+class RegularizedLoss(nn.Module):
     """
     Regularized version of the MSE loss for CSD
     """
-    def __init__(self, kernel, reg_B, reg_factor, device):
-        super(RegularizedMSE, self).__init__()
+
+    def __init__(self, criterion, kernel, reg_B, reg_factor, device):
+        super(RegularizedLoss, self).__init__()
+        self.criterion = criterion
         self.kernel = torch.tensor(kernel, dtype=torch.float32)
         self.reg_B = torch.tensor(reg_B, dtype=torch.float32)
         self.reg_factor = reg_factor
         self.device = device
 
     def forward(self, output, target):
-        criterion = nn.MSELoss()
         # Computes H dot f and standard loss between signal and the result
         H_f = torch.matmul(self.kernel.to(self.device), output.t().to(self.device)).t()
-        loss = criterion(H_f, target)
+        loss = self.criterion(H_f, target)
 
         # Computes the following expression to penalize negative fFODs: loss + lambda * sum(min(B @ f))^2
         B_f = torch.matmul(self.reg_B.to(self.device), output.t().to(self.device)).t()
@@ -31,46 +32,6 @@ class RegularizedMSE(nn.Module):
         neg_constraint = torch.sum(B_f)
         loss += self.reg_factor * torch.square(neg_constraint)
         return loss
-
-
-class ConstrainedMSE(nn.Module):
-    """
-    Constrained version of the MSE loss for CSD
-    """
-    def __init__(self, kernel, B, M, device):
-        super(ConstrainedMSE, self).__init__()
-        self.kernel = torch.tensor(kernel, dtype=torch.float32)
-        self.B = torch.tensor(B, dtype=torch.float32)
-        self.M = torch.tensor(M, dtype=torch.float32)
-        self.device = device
-
-    def forward(self, output, target):
-        criterion = nn.MSELoss()
-
-        B_f = torch.matmul(self.B.to(self.device), output.t().to(self.device)).t()
-        B_f[B_f < 0] = 0
-        new_f = torch.matmul(self.M.to(self.device), B_f.t())
-        H_f = torch.matmul(self.kernel.to(self.device), new_f).t()
-
-        return criterion(H_f, target)
-
-
-class CustomMSE(nn.Module):
-    """
-    MSE loss for CSD
-    """
-    def __init__(self, kernel, device):
-        super(CustomMSE, self).__init__()
-        self.kernel = torch.tensor(kernel, dtype=torch.float32)
-        self.device = device
-
-    def forward(self, output, target):
-        criterion = nn.MSELoss()
-
-        # Computes H dot f
-        H_f = torch.matmul(self.kernel.to(self.device), output.t()).t()
-
-        return Variable(criterion(H_f, target), requires_grad=True)
 
 
 def create_nn_arch(arch: np.ndarray):
@@ -86,14 +47,15 @@ def create_nn_arch(arch: np.ndarray):
     # Adds for each network layer the following activation functions
     for in_size, out_size in zip(arch[:-2], arch[1:-1]):
         layers.append(nn.Linear(in_size, out_size))
-        layers.append(nn.BatchNorm1d(out_size))
-        #layers.append(nn.Dropout(p=0.5))
-        layers.append(nn.ReLU())
-        #layers.append(nn.Sigmoid())
+        # layers.append(nn.BatchNorm1d(out_size))
+        # layers.append(nn.Dropout(p=0.5))
+        # layers.append(nn.ReLU())
+        layers.append(nn.GELU())
+        # layers.append(nn.Sigmoid())
 
     layers.append(nn.Linear(arch[-2], arch[-1]))
-    #layers.append(nn.ReLU())
-    #layers.append(nn.Sigmoid())
+    # layers.append(nn.ReLU())
+    # layers.append(nn.Sigmoid())
 
     return nn.Sequential(*layers)
 
@@ -102,6 +64,7 @@ class SSCSD(nn.Module):
     """
     Self-supervised MLP for CSD fODF estimation
     """
+
     def __init__(self, arch, H, B, M):
         super().__init__()
         self.network = create_nn_arch(arch)
@@ -113,15 +76,15 @@ class SSCSD(nn.Module):
         self.h = Parameter(torch.zeros(B.shape[0]).cuda())
 
     def forward(self, x):
-        #p = self.network(x)
-        #e = Variable(torch.Tensor())
-        #[Q, p, G, h, A, b] = [Variable(x.data.double().cuda()) for x in [self.Q, p, self.G, self.h, e, e]]
-        #x = QPFunction(verbose=False)(Q, p, G, h, A, b)
-        #return x.data.float()
+        # p = self.network(x)
+        # e = Variable(torch.Tensor())
+        # [Q, p, G, h, A, b] = [Variable(x.data.double().cuda()) for x in [self.Q, p, self.G, self.h, e, e]]
+        # x = QPFunction(verbose=False)(Q, p, G, h, A, b)
+        # return x.data.float()
 
-        #B_f = torch.matmul(self.B.cuda(), self.network(x).t())
-        #B_f[B_f < 0] = 0
-        #return torch.matmul(self.M.cuda(), B_f).t()
+        # B_f = torch.matmul(self.B.cuda(), self.network(x).t())
+        # B_f[B_f < 0] = 0
+        # return torch.matmul(self.M.cuda(), B_f).t()
         return self.network(x)
 
     def evaluate_odf_sh(self, signal, device=torch.device("cpu")):
@@ -134,9 +97,12 @@ class SSCSD(nn.Module):
         """
 
         signal = torch.tensor(signal, dtype=torch.float32).to(device)
+        min_signal = torch.min(signal, 1)[0][..., None]
+        max_signal = torch.max(signal, 1)[0][..., None]
         self.eval()
         with torch.no_grad():
             self.to(device)
+            # return self.forward(signal) * (max_signal - min_signal)
             return self.forward(signal)
 
 
@@ -208,3 +174,9 @@ def train_model(
 
     if return_loss_time:
         return loss_epoch, best_epoch, elapsed_time
+
+
+def minMaxNormalization(x):
+    x_min = np.amin(x, axis=1)[..., np.newaxis]
+    x_max = np.amax(x, axis=1)[..., np.newaxis]
+    return (x - x_min) / (x_max - x_min), x_min, x_max

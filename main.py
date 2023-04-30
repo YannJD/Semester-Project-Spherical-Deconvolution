@@ -1,11 +1,14 @@
 import argparse
 import pathlib
 
+import numpy as np
 import torch.optim
 from dipy.core.gradients import gradient_table
 from dipy.data import get_sphere, get_fnames
+from dipy.denoise.localpca import mppca
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.io.image import load_nifti
+from dipy.reconst.csdeconv import auto_response_ssst
 from dipy.segment.mask import median_otsu
 from dipy.viz import window, actor
 from torch.utils.data import DataLoader
@@ -25,7 +28,8 @@ def main():
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     # Load dMRI volumes with all directions and b-values
-    data, gtab = load_data()
+    # data, gtab = load_data()
+    data, gtab = load_phantom_data()
 
     # If a mask is specified, use it instead of recomputing another one
     if mask_path is not None and pathlib.Path(mask_path).exists():
@@ -40,15 +44,19 @@ def main():
     # Create architecture of the MLP
     input_size = data.shape[3] - nb_b0 if single_fiber else data.shape[3]
     output_size = nb_coeff(l_max) if single_fiber else nb_coeff(l_max) + 2
-    nn_arch = [input_size, 256, 128, output_size]
+    nn_arch = [input_size, 300, 300, 300, 400, 500, 600, output_size]
 
     # Compute the response function and the regularization matrix
     if single_fiber:
-        response_fun = get_ss_calibration_response(data, gtab, l_max)
+        # response_fun = get_ss_calibration_response(data, gtab, l_max)
+        data = mppca(data, mask=mask, patch_radius=2)
+        response_fun, ratio = auto_response_ssst(gtab, data, roi_center=[44, 24, 25], roi_radii=3, fa_thr=0.7)
         B = compute_reg_matrix(iso=0)
         data = data[..., nb_b0:]
     else:
-        response_fun = get_ms_response(data, mask, gtab, sphere, l_max, data_name)
+        denoised_data = mppca(data, mask=mask, patch_radius=2)
+        response_fun = get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, data_name)
+        data = denoised_data
         B = compute_reg_matrix()
 
     # Compute the response functions dictionary (kernel)
@@ -79,6 +87,7 @@ def main():
     nn_model.load_state_dict(torch.load(saved_weights))
 
     # fODF prediction
+    
     odf, odf_sh = compute_odf_functions(nn_model.evaluate_odf_sh,
                                         data.astype(np.float32),
                                         mask,
@@ -105,23 +114,21 @@ def train_network(data, nn_arch, kernel, B, M, device, saved_weights):
     :param saved_weights: str
     """
 
-    # Create training data set
+    # Create training data set. Min-max rescaling.
+    norm_data, data_min, data_max = minMaxNormalization(data)
+    norm_signal = torch.tensor(norm_data.astype(np.float32), dtype=torch.float32)
     signal = torch.tensor(data.astype(np.float32), dtype=torch.float32)
     train_data = TensorDataset(signal, signal)
-    train_loader = DataLoader(train_data, batch_size=128, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
 
     nn_model = SSCSD(nn_arch, kernel, B, M)
     nn_model.to(device)
 
-    # loss_fun = ConstrainedMSE(kernel, B, M, device)
+    reg_factor = 2e-1
+    loss_fun = RegularizedLoss(nn.L1Loss(), kernel, B, reg_factor, device)  # TODO: try other losses
 
-    reg_factor = 1
-    loss_fun = RegularizedMSE(kernel, B, reg_factor, device)
-
-    # loss_fun = CustomMSE(kernel, device)
-
-    optimizer = torch.optim.RMSprop(nn_model.parameters(), lr=0.001)
-    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.5, patience=2, min_lr=1e-10)
+    optimizer = torch.optim.AdamW(nn_model.parameters(), lr=2e-4)
+    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.05, patience=2, min_lr=1e-16)
 
     train_model(
         nn_model,
@@ -130,7 +137,7 @@ def train_network(data, nn_arch, kernel, B, M, device, saved_weights):
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=40,
+        epochs=50,
         load_best_model=True,
         return_loss_time=False
     )

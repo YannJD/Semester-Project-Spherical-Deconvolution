@@ -141,11 +141,12 @@ def get_ss_calibration_response(data, gtab, l_max):
                               parallel=False, num_processes=1)
 
 
-def get_ms_response(data, mask, gtab, sphere, l_max, data_name):
+def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, data_name):
     """
     Computes the multi-shell multi-tissue response function.
 
     :param data: 4D numpy array
+    :param denoised_data: 4D numpy array
     :param mask: 3D numpy array
     :param gtab: GradientTable
     :param sphere: a sphere
@@ -169,11 +170,9 @@ def get_ms_response(data, mask, gtab, sphere, l_max, data_name):
 
             return response_mcsd
 
-    denoised_arr = mppca(data, mask=mask, patch_radius=2)
-
     qball_model = shm.QballModel(gtab, l_max)
 
-    peaks = dp.peaks_from_model(model=qball_model, data=denoised_arr,
+    peaks = dp.peaks_from_model(model=qball_model, data=denoised_data,
                                 relative_peak_threshold=.5,
                                 min_separation_angle=25,
                                 sphere=sphere, mask=mask)
