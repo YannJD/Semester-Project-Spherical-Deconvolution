@@ -38,7 +38,7 @@ print("[OK]\n")
 #########################
 print("-> opening binary mask of interest...", end=' ')
 
-niiMASK = nib.load('mask.nii')
+niiMASK = nib.load('hardi_mask.nii.gz')
 niiMASK_hdr = niiMASK.header
 niiMASK_img = niiMASK.get_fdata()
 

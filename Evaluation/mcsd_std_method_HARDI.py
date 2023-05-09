@@ -102,7 +102,7 @@ def main():
     with open(response_path, 'wb') as f:
         np.save(f, [response_wm, response_gm, response_csf])
 
-    mcsd_model = MultiShellDeconvModel(gtab, response_mcsd)
+    mcsd_model = MultiShellDeconvModel(gtab, response_mcsd, sh_order=l_max)
     mcsd_fit = mcsd_model.fit(denoised_arr)
     mcsd_pred = mcsd_fit.predict()
     mcsd_odf = mcsd_fit.odf(sphere)

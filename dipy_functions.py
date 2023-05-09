@@ -108,7 +108,7 @@ def compute_kernel(gtab, l_max, response_fun, single_shell):
     """
 
     if single_shell:
-        csd_model = ConstrainedSphericalDeconvModel(gtab, response_fun)
+        csd_model = ConstrainedSphericalDeconvModel(gtab, response_fun, sh_order=l_max)
         return csd_model._X
 
     msmt_Y, m, n = multi_tissue_basis(gtab, l_max, 2)

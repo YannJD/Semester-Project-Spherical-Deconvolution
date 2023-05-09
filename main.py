@@ -48,16 +48,16 @@ def main():
 
     # Compute the response function and the regularization matrix
     if single_fiber:
-        # response_fun = get_ss_calibration_response(data, gtab, l_max)
         data = mppca(data, mask=mask, patch_radius=2)
-        response_fun, ratio = auto_response_ssst(gtab, data, roi_center=[44, 24, 25], roi_radii=3, fa_thr=0.7)
-        B = compute_reg_matrix(iso=0)
+        response_fun = get_ss_calibration_response(data, gtab, l_max)
+        # response_fun, ratio = auto_response_ssst(gtab, data, roi_center=[44, 24, 25], roi_radii=3, fa_thr=0.7)
+        B = compute_reg_matrix(iso=0, sh_order=l_max)
         data = data[..., nb_b0:]
     else:
         denoised_data = mppca(data, mask=mask, patch_radius=2)
         response_fun = get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, data_name)
         data = denoised_data
-        B = compute_reg_matrix()
+        B = compute_reg_matrix(sh_order=l_max)
 
     # Compute the response functions dictionary (kernel)
     kernel = compute_kernel(gtab, l_max, response_fun, single_fiber)
@@ -119,7 +119,7 @@ def train_network(data, nn_arch, kernel, B, M, device, saved_weights):
     norm_signal = torch.tensor(norm_data.astype(np.float32), dtype=torch.float32)
     signal = torch.tensor(data.astype(np.float32), dtype=torch.float32)
     train_data = TensorDataset(signal, signal)
-    train_loader = DataLoader(train_data, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=16, shuffle=True)
 
     nn_model = SSCSD(nn_arch, kernel, B, M)
     nn_model.to(device)
@@ -137,7 +137,7 @@ def train_network(data, nn_arch, kernel, B, M, device, saved_weights):
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=50,
+        epochs=30,
         load_best_model=True,
         return_loss_time=False
     )
