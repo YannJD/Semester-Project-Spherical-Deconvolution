@@ -97,12 +97,53 @@ class SSCSD(nn.Module):
         """
 
         signal = torch.tensor(signal, dtype=torch.float32).to(device)
-        min_signal = torch.min(signal, 1)[0][..., None]
-        max_signal = torch.max(signal, 1)[0][..., None]
         self.eval()
         with torch.no_grad():
             self.to(device)
-            # return self.forward(signal) * (max_signal - min_signal)
+            return self.forward(signal)
+
+
+class Net(nn.Module):
+    def __init__(self, arch):
+        super().__init__()
+        self.network = create_nn_arch(arch)
+
+    def forward(self, x):
+        return self.network(x)
+
+
+class MultiNetworkSSCSD(nn.Module):
+    """
+    Self-supervised multi-MLP for CSD fODF estimation
+    """
+
+    def __init__(self, lmax, arch):
+        super().__init__()
+        self.lmax = lmax
+        self.networks = {}
+        for l in range(0, self.lmax + 1, 2):
+            self.networks[l] = Net(create_nn_arch(arch[l]))
+
+    def forward(self, x):
+        fod_sh = torch.empty(0)
+        for l in range(0, self.lmax + 1, 2):
+            sh = self.networks[l](x)
+            torch.cat([fod_sh, sh])
+        return fod_sh
+
+    def evaluate_odf_sh(self, signal, device=torch.device("cpu")):
+        """
+        Evaluates the fODF SH coefficient from the signal.
+
+        :param signal: 1D array
+        :param device: str
+        :return: the fODF SH coefficients estimation
+        """
+
+        signal = torch.tensor(signal, dtype=torch.float32).to(device)
+        self.eval()
+        with torch.no_grad():
+            self.to(device)
             return self.forward(signal)
 
 
