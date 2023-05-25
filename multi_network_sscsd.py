@@ -74,7 +74,6 @@ def main():
             arch,
             kernel,
             B,
-            l_max,
             device,
             saved_weights
         )
@@ -83,7 +82,7 @@ def main():
     iso = 0 if single_fiber else 2
 
     # Load the MLP weights
-    nn_model = MultiNetworkSSCSD(l_max, arch)
+    nn_model = MultiNetworkSSCSD(arch, device)
     print("Number of parameters :", sum([np.prod(p.size()) for p in nn_model.parameters()]))
     nn_model.load_state_dict(torch.load(saved_weights))
 
@@ -101,31 +100,7 @@ def main():
     single_network_sscsd.plot_wm_odfs(odf, sphere)
 
 
-def network_architecture(input_size, lmax, is_ssst):
-    """
-    Create a multi network SSCSD architecture.
-
-    :param input_size: the data size
-    :param lmax: the max spherical harmonic order
-    :param is_ssst: if we are doing a ssst estimation
-    :return: a dictionary of all networks architectures associated with the sh order
-    """
-
-    # We use the same basis for all networks, only the output size changes
-    standard_arch = [input_size, 300, 300, 300, 400, 500, 600]
-    arch = {}
-    for l in range(0, lmax + 1, 2):
-        output_size = 2 * l + 1
-        # If we are doing multi-shell, multi-tissue estimation, we estimate 2 more sh coefficients
-        if (not is_ssst) and l == 0:
-            output_size += 2
-        standard_arch_extended = standard_arch.copy()
-        standard_arch_extended.append(output_size)
-        arch[l] = standard_arch_extended
-    return arch
-
-
-def train_network(data, nn_arch, kernel, B, l_max, device, saved_weights):
+def train_network(data, nn_arch, kernel, B, device, saved_weights):
     """
     Trains the network with the given data and network architecture.
     Saves the network weights at saved_weights when it is trained.
@@ -146,14 +121,14 @@ def train_network(data, nn_arch, kernel, B, l_max, device, saved_weights):
     train_data = TensorDataset(signal, signal)
     train_loader = DataLoader(train_data, batch_size=16, shuffle=True)
 
-    nn_model = MultiNetworkSSCSD(lmax=l_max, arch=nn_arch)
+    nn_model = MultiNetworkSSCSD(nn_arch, device)
     nn_model.to(device)
 
     reg_factor = 2e-1
     loss_fun = RegularizedLoss(nn.L1Loss(), kernel, B, reg_factor, device)  # TODO: try other losses
 
     optimizer = torch.optim.AdamW(nn_model.parameters(), lr=2e-4)
-    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.05, patience=2, min_lr=1e-16)
+    lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.05, patience=2, min_lr=1e-8)
 
     train_model(
         nn_model,
@@ -162,12 +137,37 @@ def train_network(data, nn_arch, kernel, B, l_max, device, saved_weights):
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=30,
+        epochs=20,
         load_best_model=True,
         return_loss_time=False
     )
 
     torch.save(nn_model.state_dict(), saved_weights)
+
+
+def network_architecture(input_size, lmax, is_ssst):
+    """
+    Create a multi network SSCSD architecture.
+
+    :param input_size: the data size
+    :param lmax: the max spherical harmonic order
+    :param is_ssst: if we are doing a ssst estimation
+    :return: a dictionary of all networks architectures associated with the sh order
+    """
+
+    # We use the same basis for all networks, only the output size changes
+    standard_arch = [input_size, 300, 300, 300, 400, 500, 600, 700, 800, 900, 1000]
+    # standard_arch = [input_size, 300, 300, 300, 400, 500, 1000, 1100, 1200, 1300, 1400]
+    arch = {}
+    for l in range(0, lmax + 1, 2):
+        output_size = 2 * l + 1
+        # If we are doing multi-shell, multi-tissue estimation, we estimate 2 more sh coefficients
+        if (not is_ssst) and l == 0:
+            output_size += 2
+        standard_arch_extended = standard_arch.copy()
+        standard_arch_extended.append(output_size)
+        arch[l] = standard_arch_extended
+    return arch
 
 
 if __name__ == '__main__':

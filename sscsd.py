@@ -103,33 +103,36 @@ class SSCSD(nn.Module):
             return self.forward(signal)
 
 
-class Net(nn.Module):
-    def __init__(self, arch):
+class SSCSDEncoder(nn.Module):
+    def __init__(self, arch, device):
         super().__init__()
-        self.network = create_nn_arch(arch)
+        self.networks = nn.ModuleList()
+        self.device = device
+
+        size = len(arch) * 2 - 1
+        for l in range(0, size, 2):
+            net = create_nn_arch(arch[l])
+            self.networks.append(net)
 
     def forward(self, x):
-        return self.network(x)
+        fod_sh = torch.empty(0).to(self.device)
+        size = len(self.networks)
+        for i in range(size):
+            sh = self.networks[i](x)
+            fod_sh = torch.cat((fod_sh, sh), 1)
+        return fod_sh
 
 
 class MultiNetworkSSCSD(nn.Module):
     """
     Self-supervised multi-MLP for CSD fODF estimation
     """
-
-    def __init__(self, lmax, arch):
+    def __init__(self, arch, device):
         super().__init__()
-        self.lmax = lmax
-        self.networks = {}
-        for l in range(0, self.lmax + 1, 2):
-            self.networks[l] = Net(create_nn_arch(arch[l]))
+        self.encoder = SSCSDEncoder(arch, device)
 
     def forward(self, x):
-        fod_sh = torch.empty(0)
-        for l in range(0, self.lmax + 1, 2):
-            sh = self.networks[l](x)
-            torch.cat([fod_sh, sh])
-        return fod_sh
+        return self.encoder(x)
 
     def evaluate_odf_sh(self, signal, device=torch.device("cpu")):
         """

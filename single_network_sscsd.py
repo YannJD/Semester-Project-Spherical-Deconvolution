@@ -45,7 +45,9 @@ def main():
     input_size = data.shape[3] - nb_b0 if single_fiber else data.shape[3]
     output_size = nb_coeff(l_max) if single_fiber else nb_coeff(l_max) + 2
     nn_arch = [input_size, 300, 300, 300, 400, 500, 600, output_size]
+    # nn_arch = [input_size, 300, 300, 300, 400, 500, 600, 700, 800, 900, 1000, output_size]
 
+    b0_mean = np.mean(data[..., :nb_b0], 3)[mask, np.newaxis]
     # Compute the response function and the regularization matrix
     if single_fiber:
         data = mppca(data, mask=mask, patch_radius=2)
@@ -74,6 +76,7 @@ def main():
             kernel,
             B,
             M,
+            b0_mean,
             device,
             saved_weights
         )
@@ -100,7 +103,7 @@ def main():
     plot_wm_odfs(odf, sphere)
 
 
-def train_network(data, nn_arch, kernel, B, M, device, saved_weights):
+def train_network(data, nn_arch, kernel, B, M, b0_mean, device, saved_weights):
     """
     Trains the network with the given data and network architecture.
     Saves the network weights at saved_weights when it is trained.
@@ -115,7 +118,8 @@ def train_network(data, nn_arch, kernel, B, M, device, saved_weights):
     """
 
     # Create training data set. Min-max rescaling.
-    norm_data, data_min, data_max = minMaxNormalization(data)
+    # norm_data, data_min, data_max = minMaxNormalization(data)
+    norm_data = b0_normalization(data, b0_mean)
     norm_signal = torch.tensor(norm_data.astype(np.float32), dtype=torch.float32)
     signal = torch.tensor(data.astype(np.float32), dtype=torch.float32)
     train_data = TensorDataset(signal, signal)
@@ -143,6 +147,10 @@ def train_network(data, nn_arch, kernel, B, M, device, saved_weights):
     )
 
     torch.save(nn_model.state_dict(), saved_weights)
+
+
+def b0_normalization(data, b0_mean):
+    return data / b0_mean
 
 
 def parse_args():
