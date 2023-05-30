@@ -198,7 +198,7 @@ def load_data():  # TODO : make different load methods
 
 
 def load_phantom_data():
-    data, affine = load_nifti('Evaluation/Hardi_dataset/testing-data_DWIS_hardi-scheme_SNR-30.nii.gz')
+    data, affine = load_nifti('Evaluation/Hardi_dataset/testing-data_DWIS_hardi-scheme_SNR-10.nii.gz')
     bvals, bvecs = read_bvals_bvecs('Evaluation/Hardi_dataset/hardi-scheme.bval',
                                     'Evaluation/Hardi_dataset/hardi-scheme.bvec')
     gtab = gradient_table(bvals, bvecs)

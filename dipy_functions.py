@@ -18,7 +18,7 @@ from dipy.segment.tissue import TissueClassifierHMRF
 from mrtrix_functions import nb_coeff, save_to_mrtrix_format
 
 
-def compute_odf_functions(evaluate_odf_sh, data, mask, device, l_max, sphere, iso, data_name):
+def compute_odf_functions(evaluate_odf_sh, data, mask, device, l_max, sphere, iso, save_path):
     """
     Compute the fODF for all voxels.
 
@@ -29,17 +29,18 @@ def compute_odf_functions(evaluate_odf_sh, data, mask, device, l_max, sphere, is
     :param l_max: int
     :param sphere: the sphere on which to evaluate the fODFs
     :param iso: the number of tissue types minus one, int
-    :param data_name: the saving file names prefix, str
+    :param save_path: the saving path, str
     :returns: the fODFs and the fODF SH coefficients
     """
 
     odf_sh = compute_odfs_sh(evaluate_odf_sh, data, mask, device, l_max, iso)
     odfs = shm.sh_to_sf(odf_sh[..., iso:], sphere, l_max)
 
-    save_to_mrtrix_format(odf_sh.numpy(), l_max, sphere, iso + 1, data_name)
+    # TODO: Uncomment for real tests
+    # save_to_mrtrix_format(odf_sh.numpy(), l_max, sphere, iso + 1, save_path)
 
     odf_img = nib.Nifti1Image(odfs, None)
-    nib.save(odf_img, data_name + "_odfs.nii.gz")
+    nib.save(odf_img, save_path + "/odfs.nii.gz")
 
     return odfs, odf_sh
 
@@ -141,7 +142,7 @@ def get_ss_calibration_response(data, gtab, l_max):
                               parallel=False, num_processes=1)
 
 
-def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, data_name):
+def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, save_path):
     """
     Computes the multi-shell multi-tissue response function.
 
@@ -151,12 +152,12 @@ def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, data_name):
     :param gtab: GradientTable
     :param sphere: a sphere
     :param l_max: the max SH order, int
-    :param data_name: the saving file name prefix, str
+    :param save_path: the saving path, str
     :return: the multi-shell multi-tissue response function
     """
 
     ubvals = unique_bvals_tolerance(gtab.bvals)
-    response_path = data_name + '_response.npy'
+    response_path = save_path + '/response.npy'
 
     # If it is already computed, load the existing response function
     if pathlib.Path(response_path).exists():
@@ -186,8 +187,13 @@ def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, data_name):
     gm = np.where(final_segmentation == 2, 1, 0)
     wm = np.where(final_segmentation == 3, 1, 0)
 
+    tenmodel = dti.TensorModel(gtab)
+    tenfit = tenmodel.fit(data, mask=mask)
+
+    FA = np.max(fractional_anisotropy(tenfit.evals))
+
     mask_wm, mask_gm, mask_csf = mask_for_response_msmt(gtab, data, roi_radii=10,
-                                                        wm_fa_thr=0.7,
+                                                        wm_fa_thr=0.8 * FA,
                                                         gm_fa_thr=0.3,
                                                         csf_fa_thr=0.15,
                                                         gm_md_thr=0.001,

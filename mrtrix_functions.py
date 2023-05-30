@@ -25,7 +25,7 @@ def convert_to_mrtrix(order):
     return conversion_matrix
 
 
-def save_to_mrtrix_format(odf_sh, l_max, sphere, tissue_classes, name):
+def save_to_mrtrix_format(odf_sh, l_max, sphere, tissue_classes, save_path):
     """
     Saves the spherical harmonic coefficients and the fODF evaluated on the sphere in the mrtrix format at location
     and name data_name.
@@ -34,7 +34,7 @@ def save_to_mrtrix_format(odf_sh, l_max, sphere, tissue_classes, name):
     :param l_max: max order, int
     :param sphere: the sphere on which to evaluate the fODF
     :param tissue_classes: the number of tissues to evaluate (WM/GM/CSF for example), int
-    :param name: str
+    :param save_path: the path where to save the files, str
     """
 
     sh_const = .5 / np.sqrt(np.pi)
@@ -44,11 +44,11 @@ def save_to_mrtrix_format(odf_sh, l_max, sphere, tissue_classes, name):
 
     mrtrix_sh = np.dot(odf_sh[..., tissue_classes - 1:], conversion_matrix.T) * wm_vf[..., np.newaxis]
     sh_img = nib.Nifti1Image(mrtrix_sh, None)
-    nib.save(sh_img, name + "_mrtrix_sh.nii.gz")
+    nib.save(sh_img, save_path + "/mrtrix_sh.nii.gz")
 
     new_odf = shm.sh_to_sf(mrtrix_sh, sphere, l_max)
     fods_img = nib.Nifti1Image(new_odf, None)
-    nib.save(fods_img, name + "_mrtrix_odfs.nii.gz")
+    nib.save(fods_img, save_path + "/mrtrix_odfs.nii.gz")
 
 
 def sh_order(j):

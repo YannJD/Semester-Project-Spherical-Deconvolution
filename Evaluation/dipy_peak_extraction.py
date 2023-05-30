@@ -38,6 +38,7 @@ def peak_extraction(odfs_file, sphere_vertices_file, out_file, relative_peak_thr
             m = num_peak_coeffs
         peaks[index][:m] = vox_peaks[:m]
 
+    peaks = np.pad(peaks, [(0, 0), (0, 0), (0, 0), (0, 15 - peaks.shape[3])], mode='constant')
     peaks_img = nib.Nifti1Image(peaks.astype(np.float32), refaff)
     nib.save(peaks_img, out_file)
 

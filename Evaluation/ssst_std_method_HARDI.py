@@ -20,7 +20,7 @@ from mrtrix_functions import save_to_mrtrix_format
 
 
 def main():
-    data, affine = load_nifti('Hardi_dataset/testing-data_DWIS_hardi-scheme_SNR-30.nii.gz')
+    data, affine = load_nifti('Hardi_dataset/hardi-scheme_SNR-30.nii.gz')
     bvals, bvecs = read_bvals_bvecs('Hardi_dataset/hardi-scheme.bval', 'Hardi_dataset/hardi-scheme.bvec')
     gtab = gradient_table(bvals, bvecs)
 
