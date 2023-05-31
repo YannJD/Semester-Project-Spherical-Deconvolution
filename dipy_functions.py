@@ -37,7 +37,7 @@ def compute_odf_functions(evaluate_odf_sh, data, mask, device, l_max, sphere, is
     odfs = shm.sh_to_sf(odf_sh[..., iso:], sphere, l_max)
 
     # TODO: Uncomment for real tests
-    # save_to_mrtrix_format(odf_sh.numpy(), l_max, sphere, iso + 1, save_path)
+    save_to_mrtrix_format(odf_sh.numpy(), l_max, sphere, iso + 1, save_path)
 
     odf_img = nib.Nifti1Image(odfs, None)
     nib.save(odf_img, save_path + "/odfs.nii.gz")

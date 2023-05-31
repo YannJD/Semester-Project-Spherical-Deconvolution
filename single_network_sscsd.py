@@ -13,23 +13,22 @@ from dipy.segment.mask import median_otsu
 from dipy.viz import window, actor
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
+
+import multi_network_sscsd
 from dipy_functions import get_ss_calibration_response, compute_reg_matrix, get_ms_response, compute_kernel, \
     compute_odf_functions
 from mrtrix_functions import nb_coeff
 from sscsd import *
 
 
-def main():
-    # Parse command line arguments passed
-    data_name, mask_path, l_max, single_fiber = parse_args()
-    data_name = 'sscsd_output/' + data_name
-
+def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
     sphere = get_sphere('symmetric724')
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     # Load dMRI volumes with all directions and b-values
     # data, gtab = load_data()
-    data, gtab = load_phantom_data()
+    # data, gtab = load_phantom_data()
+    data, gtab = multi_network_sscsd.load_from_path(fname, bvals, bvecs)
 
     # If a mask is specified, use it instead of recomputing another one
     if mask_path is not None and pathlib.Path(mask_path).exists():
@@ -57,7 +56,7 @@ def main():
         data = data[..., nb_b0:]
     else:
         denoised_data = mppca(data, mask=mask, patch_radius=2)
-        response_fun = get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, data_name)
+        response_fun = get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, save_to)
         data = denoised_data
         B = compute_reg_matrix(sh_order=l_max)
 
@@ -67,7 +66,7 @@ def main():
     M = np.linalg.inv(B_t @ B) @ B_t
 
     # If there are already MLP weights use them instead of retraining
-    saved_weights = data_name + '_weights.pth'
+    saved_weights = save_to + '/weights.pth'
     if not pathlib.Path(saved_weights).exists():
         masked_data = data[mask]
         train_network(
@@ -98,9 +97,9 @@ def main():
                                         l_max,
                                         sphere,
                                         iso,
-                                        data_name)
+                                        save_to)
 
-    plot_wm_odfs(odf, sphere)
+    # plot_wm_odfs(odf, sphere)
 
 
 def train_network(data, nn_arch, kernel, B, M, b0_mean, device, saved_weights):
@@ -248,4 +247,26 @@ def plot_wm_odfs(mcsd_odf, sphere):
 
 
 if __name__ == '__main__':
-    main()
+    import sys
+
+    args = sys.argv[1:]
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--name', '-n', type=str, required=True)
+    parser.add_argument('--bvals', '-va', type=str, required=True)
+    parser.add_argument('--bvecs', '-ve', type=str, required=True)
+    parser.add_argument('--mask', '-m', type=str)
+    parser.add_argument('--order', '-o', type=int, default=8)
+    parser.add_argument('--ssst', '-s', default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--save_to', '-to', type=str, required=True)
+    args = parser.parse_args(args)
+
+    fname = args.name
+    bvals = args.bvals
+    bvecs = args.bvecs
+    mask_path = args.mask
+    order = args.order
+    single_fiber = args.ssst
+    save_to = args.save_to
+
+    main(fname, bvals, bvecs, mask_path, order, single_fiber, save_to)
