@@ -43,6 +43,7 @@ def main():
                 max_peak_number=3
             )
             os.remove(save_to + '/odfs.nii.gz')
+        os.remove(save_to + '/weights.pth')
 
 
 if __name__ == '__main__':

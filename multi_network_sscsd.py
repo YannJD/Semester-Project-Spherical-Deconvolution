@@ -92,7 +92,7 @@ def main(data_path, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
-    single_network_sscsd.plot_wm_odfs(odf, sphere)
+    # single_network_sscsd.plot_wm_odfs(odf, sphere)
 
 
 def train_network(data, nn_arch, kernel, B, device, saved_weights):

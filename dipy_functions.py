@@ -193,7 +193,7 @@ def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, save_path):
     FA = np.max(fractional_anisotropy(tenfit.evals))
 
     mask_wm, mask_gm, mask_csf = mask_for_response_msmt(gtab, data, roi_radii=10,
-                                                        wm_fa_thr=0.8 * FA,
+                                                        wm_fa_thr=0.7 * FA,
                                                         gm_fa_thr=0.3,
                                                         csf_fa_thr=0.15,
                                                         gm_md_thr=0.001,
@@ -209,8 +209,8 @@ def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, save_path):
                                                                      mask_csf)
 
     # Save response function for future uses
-    with open(response_path, 'wb') as f:
-        np.save(f, [response_wm, response_gm, response_csf])
+    # with open(response_path, 'wb') as f:
+        # np.save(f, [response_wm, response_gm, response_csf])
 
     response_mcsd = multi_shell_fiber_response(sh_order=l_max,
                                                bvals=ubvals,

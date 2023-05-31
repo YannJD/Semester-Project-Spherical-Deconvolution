@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import time
 from cmath import inf
-from qpth.qp import QPFunction
+# from qpth.qp import QPFunction
 from torch.autograd import Variable
 from torch.nn.parameter import Parameter
 
