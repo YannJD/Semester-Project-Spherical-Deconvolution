@@ -18,6 +18,7 @@ from dipy.segment.mask import median_otsu
 from dipy.segment.tissue import TissueClassifierHMRF
 
 import dipy_functions
+from Evaluation import dipy_peak_extraction
 from mrtrix_functions import save_to_mrtrix_format
 
 
@@ -106,6 +107,17 @@ def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
     mcsd_odf = mcsd_fit.odf(sphere)
 
     save_nifti(save_path + '/odfs.nii.gz', mcsd_odf, affine)
+
+    """
+    dipy_peak_extraction.peak_extraction(
+        save_path + '/odfs.nii.gz',
+        'sphere724.txt',
+        save_path + '/peaks.nii.gz',
+        relative_peak_threshold=0.2,
+        min_separation_angle=15.0,
+        max_peak_number=3
+    )
+    """
 
     # save_to_mrtrix_format(mcsd_fit.all_shm_coeff, l_max, sphere, 3, name)
 

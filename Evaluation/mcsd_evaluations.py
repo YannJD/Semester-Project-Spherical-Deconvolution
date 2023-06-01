@@ -2,6 +2,7 @@ import argparse
 import os
 
 import multi_network_sscsd
+import single_network_sscsd
 import std_mcsd
 import dipy_peak_extraction
 
@@ -30,10 +31,12 @@ def main():
         snr_path = path + '/SNR_' + str(snr)
         for i in range(10):
             data_path = snr_path + '/data_' + str(i + 1) + '.nii'
+
             if is_std_method:
                 std_mcsd.main(data_path, bvals, bvecs, mask_path, order, save_to)
             else:
                 multi_network_sscsd.main(data_path, bvals, bvecs, mask_path, order, False, save_to)
+                # single_network_sscsd.main(data_path, bvals, bvecs, mask_path, order, False, save_to)
             dipy_peak_extraction.peak_extraction(
                 save_to + '/odfs.nii.gz',
                 'sphere724.txt',

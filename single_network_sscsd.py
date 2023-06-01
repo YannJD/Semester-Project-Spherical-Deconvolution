@@ -19,6 +19,7 @@ from dipy_functions import get_ss_calibration_response, compute_reg_matrix, get_
     compute_odf_functions
 from mrtrix_functions import nb_coeff
 from sscsd import *
+from Evaluation.dipy_peak_extraction import peak_extraction
 
 
 def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
@@ -47,6 +48,7 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
     # nn_arch = [input_size, 300, 300, 300, 400, 500, 600, 700, 800, 900, 1000, output_size]
 
     b0_mean = np.mean(data[..., :nb_b0], 3)[mask, np.newaxis]
+
     # Compute the response function and the regularization matrix
     if single_fiber:
         data = mppca(data, mask=mask, patch_radius=2)
@@ -99,6 +101,17 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
+    """
+    peak_extraction(
+        save_to + '/odfs.nii.gz',
+        'Evaluation/sphere724.txt',
+        save_to + '/peaks.nii.gz',
+        relative_peak_threshold=0.2,
+        min_separation_angle=15.0,
+        max_peak_number=3
+    )
+    """
+
     # plot_wm_odfs(odf, sphere)
 
 
@@ -122,7 +135,7 @@ def train_network(data, nn_arch, kernel, B, M, b0_mean, device, saved_weights):
     norm_signal = torch.tensor(norm_data.astype(np.float32), dtype=torch.float32)
     signal = torch.tensor(data.astype(np.float32), dtype=torch.float32)
     train_data = TensorDataset(signal, signal)
-    train_loader = DataLoader(train_data, batch_size=16, shuffle=True)
+    train_loader = DataLoader(train_data, batch_size=8, shuffle=True)
 
     nn_model = SSCSD(nn_arch, kernel, B, M)
     nn_model.to(device)
@@ -140,7 +153,7 @@ def train_network(data, nn_arch, kernel, B, M, b0_mean, device, saved_weights):
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=30,
+        epochs=20,
         load_best_model=True,
         return_loss_time=False
     )
