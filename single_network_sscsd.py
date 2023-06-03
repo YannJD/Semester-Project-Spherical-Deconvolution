@@ -101,7 +101,6 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
-    """
     peak_extraction(
         save_to + '/odfs.nii.gz',
         'Evaluation/sphere724.txt',
@@ -110,7 +109,6 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
         min_separation_angle=15.0,
         max_peak_number=3
     )
-    """
 
     # plot_wm_odfs(odf, sphere)
 
@@ -153,7 +151,7 @@ def train_network(data, nn_arch, kernel, B, M, b0_mean, device, saved_weights):
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=20,
+        epochs=30,
         load_best_model=True,
         return_loss_time=False
     )
