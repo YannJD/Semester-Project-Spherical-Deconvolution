@@ -21,8 +21,10 @@ from dipy_peak_extraction import peak_extraction
 
 
 def main():
-    data, affine = load_nifti('HARDI_volumes/SNR_10/data_1.nii')
-    bvals, bvecs = read_bvals_bvecs('Hardi_dataset/hardi-scheme.bval', 'Hardi_dataset/hardi-scheme.bvec')
+    # data, affine = load_nifti('HARDI_volumes/SNR_10/data_1.nii')
+    # bvals, bvecs = read_bvals_bvecs('Hardi_dataset/hardi-scheme.bval', 'Hardi_dataset/hardi-scheme.bvec')
+    data, affine = load_nifti('DISCO_volumes/SNR_10/data_1.nii')
+    bvals, bvecs = read_bvals_bvecs('DISCO_dataset/DiSCo_1_shell.bvals', 'DISCO_dataset/DiSCo_1_shell.bvecs')
     gtab = gradient_table(bvals, bvecs)
 
     l_max = 8
@@ -33,8 +35,10 @@ def main():
         data[~mask] = 0
         data = mppca(data, mask=mask, patch_radius=2)
 
+
     # response_fun = get_ss_calibration_response(data, gtab, l_max)
-    response_fun, ratio = auto_response_ssst(gtab, data, roi_center=[44, 24, 25], roi_radii=3, fa_thr=0.7)
+    # response_fun, ratio = auto_response_ssst(gtab, data, roi_center=[44, 24, 25], roi_radii=3, fa_thr=0.7)
+    response_fun, ratio = auto_response_ssst(gtab, data, roi_radii=10, fa_thr=0.7)
 
     sphere = get_sphere('symmetric724')
 
@@ -46,7 +50,7 @@ def main():
 
     save_nifti(path + '/odfs.nii.gz', csd_odf, affine)
 
-    save_to_mrtrix_format(shm.sf_to_sh(csd_odf, sphere, l_max), l_max, sphere, 1, path)
+    save_to_mrtrix_format(shm.sf_to_sh(csd_odf, sphere, l_max), l_max, sphere, affine, path)
 
     peak_extraction(
         path + '/odfs.nii.gz',

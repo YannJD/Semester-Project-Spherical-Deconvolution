@@ -313,7 +313,7 @@ csf_sh_coeff = sh_coeff[..., 0]
 gm_sh_coeff = sh_coeff[..., 1]
 wm_sh_coeff = mcsd_fit.shm_coeff
 
-#save_to_mrtrix_format(sh_coeff, wm_sh_coeff, 8, sphere, 3)
+# save_to_mrtrix_format(sh_coeff, wm_sh_coeff, 8, sphere, affine)
 
 """
 The model allows to predict a signal from sh coefficients. There are two ways of

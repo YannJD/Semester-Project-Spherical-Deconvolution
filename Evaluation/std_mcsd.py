@@ -122,7 +122,7 @@ def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
     )
     """
 
-    # save_to_mrtrix_format(mcsd_fit.all_shm_coeff, l_max, sphere, 3, name)
+    # save_to_mrtrix_format(mcsd_fit.all_shm_coeff, l_max, sphere, affine, name)
 
 
 if __name__ == '__main__':

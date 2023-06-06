@@ -241,7 +241,7 @@ import dipy.reconst.shm as shm
 
 csd_odf = csd_fit.odf(default_sphere)
 odf_sh = shm.sf_to_sh(csd_odf, default_sphere, 8)
-save_to_mrtrix_format(odf_sh, 8, default_sphere, 1, 'csd_ex')
+save_to_mrtrix_format(odf_sh, 8, default_sphere, affine, 'csd_ex')
 
 """
 Here we visualize only a 30x30 region.
