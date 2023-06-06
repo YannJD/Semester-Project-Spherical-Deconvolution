@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 
 import single_network_sscsd
+from Evaluation.dipy_peak_extraction import peak_extraction
 from dipy_functions import get_ss_calibration_response, compute_reg_matrix, get_ms_response, compute_kernel, \
     compute_odf_functions
 from mrtrix_functions import nb_coeff
@@ -92,6 +93,16 @@ def main(data_path, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
+    """
+    peak_extraction(
+        save_to + '/odfs.nii.gz',
+        'Evaluation/sphere724.txt',
+        save_to + '/peaks.nii.gz',
+        relative_peak_threshold=0.2,
+        min_separation_angle=15.0,
+        max_peak_number=3
+    )"""
+
     # single_network_sscsd.plot_wm_odfs(odf, sphere)
 
 
@@ -132,7 +143,7 @@ def train_network(data, nn_arch, kernel, B, device, saved_weights):
         loss_fun,
         optimizer,
         lr_sched,
-        epochs=20,
+        epochs=30,
         load_best_model=True,
         return_loss_time=False
     )

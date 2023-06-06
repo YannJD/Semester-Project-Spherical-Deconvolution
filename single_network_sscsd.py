@@ -36,7 +36,8 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
         mask, affine = load_nifti(mask_path)
         mask = mask.astype(bool)
     else:
-        b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+        mask = np.ones(data[..., 0].shape).astype(bool)
+        # b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
         # b0_mask, mask = median_otsu(data, median_radius=4, numpass=4, vol_idx=[0, 1])  # TODO: choose parameters
 
     nb_b0 = np.sum(gtab.bvals == 0)
@@ -101,6 +102,7 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
+    """
     peak_extraction(
         save_to + '/odfs.nii.gz',
         'Evaluation/sphere724.txt',
@@ -108,7 +110,7 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
         relative_peak_threshold=0.2,
         min_separation_angle=15.0,
         max_peak_number=3
-    )
+    )"""
 
     # plot_wm_odfs(odf, sphere)
 

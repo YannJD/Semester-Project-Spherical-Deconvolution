@@ -28,8 +28,11 @@ def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
     gtab = gradient_table(bvals, bvecs)
 
     # b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
-    mask, affine = load_nifti(mask_path)
-    mask = mask.astype(bool)
+    if mask_path is not None:
+        mask, affine = load_nifti(mask_path)
+        mask = mask.astype(bool)
+    else:
+        mask = np.ones(data[..., 0].shape).astype(bool)
 
     sphere = get_sphere('symmetric724')
 

@@ -22,7 +22,8 @@ import sys, glob, xlwt, os.path, re
 ################################
 print("-> opening ground-truth...", end=' ')
 
-niiGT = nib.load('ground-truth-peaks.nii.gz')
+# niiGT = nib.load('ground-truth-peaks.nii.gz')
+niiGT = nib.load('DISCO_dataset/DiSCo1_peaks.nii.gz')
 niiGT_hdr = niiGT.header
 niiGT_img = niiGT.get_fdata()
 
@@ -38,7 +39,8 @@ print("[OK]\n")
 #########################
 print("-> opening binary mask of interest...", end=' ')
 
-niiMASK = nib.load('hardi_mask.nii.gz')
+# niiMASK = nib.load('hardi_mask.nii.gz')
+niiMASK = nib.load('DISCO_dataset/DiSCo1_mask.nii.gz')
 niiMASK_hdr = niiMASK.header
 niiMASK_img = niiMASK.get_fdata()
 

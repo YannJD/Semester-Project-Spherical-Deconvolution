@@ -17,20 +17,13 @@ from dipy.segment.tissue import TissueClassifierHMRF
 
 from dipy_functions import get_ss_calibration_response
 from mrtrix_functions import save_to_mrtrix_format
+from dipy_peak_extraction import peak_extraction
 
 
 def main():
-    data, affine = load_nifti('Hardi_dataset/hardi-scheme_SNR-30.nii.gz')
+    data, affine = load_nifti('HARDI_volumes/SNR_10/data_1.nii')
     bvals, bvecs = read_bvals_bvecs('Hardi_dataset/hardi-scheme.bval', 'Hardi_dataset/hardi-scheme.bvec')
     gtab = gradient_table(bvals, bvecs)
-
-    bvals = gtab.bvals
-    bvecs = gtab.bvecs
-
-    sel_b = np.logical_or(bvals == 0, bvals == 3000)
-    data = data[..., sel_b]
-
-    gtab = gradient_table(bvals[sel_b], bvecs[sel_b])
 
     l_max = 8
 
@@ -49,11 +42,20 @@ def main():
     csd_fit = csd_model.fit(data)
     csd_odf = csd_fit.odf(sphere)
 
-    name = 'std_ssst_HARDI'
+    path = 'test_ssst'
 
-    save_nifti(name + '_odfs.nii.gz', csd_odf, affine)
+    save_nifti(path + '/odfs.nii.gz', csd_odf, affine)
 
-    save_to_mrtrix_format(shm.sf_to_sh(csd_odf, sphere, l_max), l_max, sphere, 1, name)
+    save_to_mrtrix_format(shm.sf_to_sh(csd_odf, sphere, l_max), l_max, sphere, 1, path)
+
+    peak_extraction(
+        path + '/odfs.nii.gz',
+        'sphere724.txt',
+        path + '/peaks_SNR10.nii.gz',
+        relative_peak_threshold=0.2,
+        min_separation_angle=15.0,
+        max_peak_number=3
+    )
 
 
 if __name__ == '__main__':
