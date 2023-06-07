@@ -28,17 +28,17 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
     # Load dMRI volumes with all directions and b-values
-    # data, gtab = load_data()
+    data, gtab = load_data()
     # data, gtab = load_phantom_data()
-    data, gtab = multi_network_sscsd.load_from_path(fname, bvals, bvecs)
+    # data, gtab = multi_network_sscsd.load_from_path(fname, bvals, bvecs)
 
     # If a mask is specified, use it instead of recomputing another one
     if mask_path is not None and pathlib.Path(mask_path).exists():
         mask, affine = load_nifti(mask_path)
         mask = mask.astype(bool)
     else:
-        mask = np.ones(data[..., 0].shape).astype(bool)
-        # b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+        # mask = np.ones(data[..., 0].shape).astype(bool)
+        b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
         # b0_mask, mask = median_otsu(data, median_radius=4, numpass=4, vol_idx=[0, 1])  # TODO: choose parameters
 
     nb_b0 = np.sum(gtab.bvals == 0)
@@ -103,9 +103,9 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
-    """
-    mrtrix_functions.save_to_mrtrix_format(odf_sh[..., iso:], l_max, sphere, affine, save_to)
 
+    mrtrix_functions.save_to_mrtrix_format(odf_sh[..., iso:], l_max, sphere, None, save_to)
+    """
     peak_extraction(
         save_to + '/odfs.nii.gz',
         'Evaluation/sphere724.txt',
@@ -143,10 +143,10 @@ def train_network(data, nn_arch, kernel, B, M, b0_mean, device, saved_weights):
     nn_model = SSCSD(nn_arch, kernel, B, M)
     nn_model.to(device)
 
-    reg_factor = 2e-1
+    reg_factor = 0.19
     loss_fun = RegularizedLoss(nn.MSELoss(), kernel, B, reg_factor, device)  # TODO: try other losses
 
-    optimizer = torch.optim.AdamW(nn_model.parameters(), lr=2e-4)
+    optimizer = torch.optim.RMSprop(nn_model.parameters(), lr=2e-4)
     lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.05, patience=2, min_lr=1e-16)
 
     train_model(

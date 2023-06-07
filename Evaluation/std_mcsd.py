@@ -18,21 +18,25 @@ from dipy.segment.mask import median_otsu
 from dipy.segment.tissue import TissueClassifierHMRF
 
 import dipy_functions
+import single_network_sscsd
 from Evaluation import dipy_peak_extraction
 from mrtrix_functions import save_to_mrtrix_format
 
 
 def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
-    data, affine = load_nifti(fpath)
-    bvals, bvecs = read_bvals_bvecs(bvals_path, bvecs_path)
-    gtab = gradient_table(bvals, bvecs)
+    # data, affine = load_nifti(fpath)
+    # bvals, bvecs = read_bvals_bvecs(bvals_path, bvecs_path)
+    # gtab = gradient_table(bvals, bvecs)
 
-    # b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+    data, gtab = single_network_sscsd.load_data()
+
     if mask_path is not None:
         mask, affine = load_nifti(mask_path)
         mask = mask.astype(bool)
     else:
-        mask = np.ones(data[..., 0].shape).astype(bool)
+        # mask = np.ones(data[..., 0].shape).astype(bool)
+        b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+        affine = None
 
     sphere = get_sphere('symmetric724')
 
@@ -122,7 +126,7 @@ def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
     )
     """
 
-    # save_to_mrtrix_format(mcsd_fit.all_shm_coeff, l_max, sphere, affine, name)
+    save_to_mrtrix_format(mcsd_fit.all_shm_coeff, l_max, sphere, affine, save_path)
 
 
 if __name__ == '__main__':
@@ -134,7 +138,7 @@ if __name__ == '__main__':
     parser.add_argument('--path', '-p', type=str, required=True)
     parser.add_argument('--bvals', '-va', type=str, required=True)
     parser.add_argument('--bvecs', '-ve', type=str, required=True)
-    parser.add_argument('--mask', '-m', type=str, required=True)
+    parser.add_argument('--mask', '-m', type=str, default=None)
     parser.add_argument('--order', '-o', type=int, default=8)
     parser.add_argument('--save_to', '-s', type=str, required=True)
     args = parser.parse_args(args)
