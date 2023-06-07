@@ -14,6 +14,7 @@ from dipy.viz import window, actor
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 
+import mrtrix_functions
 import single_network_sscsd
 from Evaluation.dipy_peak_extraction import peak_extraction
 from dipy_functions import get_ss_calibration_response, compute_reg_matrix, get_ms_response, compute_kernel, \
@@ -93,7 +94,8 @@ def main(data_path, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
-    """
+    mrtrix_functions.save_to_mrtrix_format(odf_sh[..., iso:], l_max, sphere, affine, save_to)
+
     peak_extraction(
         save_to + '/odfs.nii.gz',
         'Evaluation/sphere724.txt',
@@ -101,7 +103,7 @@ def main(data_path, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
         relative_peak_threshold=0.2,
         min_separation_angle=15.0,
         max_peak_number=3
-    )"""
+    )
 
     # single_network_sscsd.plot_wm_odfs(odf, sphere)
 
@@ -131,7 +133,7 @@ def train_network(data, nn_arch, kernel, B, device, saved_weights):
     nn_model.to(device)
 
     reg_factor = 2e-1
-    loss_fun = RegularizedLoss(nn.L1Loss(), kernel, B, reg_factor, device)  # TODO: try other losses
+    loss_fun = RegularizedLoss(nn.MSELoss(), kernel, B, reg_factor, device)  # TODO: try other losses
 
     optimizer = torch.optim.AdamW(nn_model.parameters(), lr=2e-4)
     lr_sched = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.05, patience=2, min_lr=1e-8)

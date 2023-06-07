@@ -54,12 +54,14 @@ def main():
             )
 
             # For DiSCo
+            """
             odf, affine = load_nifti(save_to + '/odfs.nii.gz')
             sphere = get_sphere('symmetric724')
             sh = shm.sf_to_sh(odf, sphere, sh_order=order)
 
             sh_img = nib.Nifti1Image(sh.astype(np.float32), affine)
             nib.save(sh_img, save_to + '/sh_' + str(i + 1) + '_SNR_' + str(snr) + '.nii.gz')
+            """
 
             os.remove(save_to + '/odfs.nii.gz')
         if not is_std_method:

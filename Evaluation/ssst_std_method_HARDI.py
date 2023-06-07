@@ -29,12 +29,11 @@ def main():
 
     l_max = 8
 
-    if pathlib.Path('mask.nii').exists():
-        mask, affine = load_nifti('mask.nii')
-        mask = mask.astype(bool)
-        data[~mask] = 0
-        data = mppca(data, mask=mask, patch_radius=2)
-
+    # mask, affine = load_nifti('mask.nii')
+    mask, affine = load_nifti('DISCO_dataset/DiSCo1_mask.nii.gz')
+    mask = mask.astype(bool)
+    data[~mask] = 0
+    data = mppca(data, mask=mask, patch_radius=2)
 
     # response_fun = get_ss_calibration_response(data, gtab, l_max)
     # response_fun, ratio = auto_response_ssst(gtab, data, roi_center=[44, 24, 25], roi_radii=3, fa_thr=0.7)
