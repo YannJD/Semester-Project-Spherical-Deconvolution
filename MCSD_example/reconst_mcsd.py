@@ -48,7 +48,7 @@ from dipy.viz import window, actor
 
 from dipy.data import get_sphere, get_fnames
 
-from main import save_to_mrtrix_format
+from mrtrix_functions import save_to_mrtrix_format
 
 sphere = get_sphere('symmetric724')
 
@@ -313,7 +313,7 @@ csf_sh_coeff = sh_coeff[..., 0]
 gm_sh_coeff = sh_coeff[..., 1]
 wm_sh_coeff = mcsd_fit.shm_coeff
 
-# save_to_mrtrix_format(sh_coeff, wm_sh_coeff, 8, sphere, affine)
+save_to_mrtrix_format(wm_sh_coeff, 8, sphere, None, "../MCSD_example")
 
 """
 The model allows to predict a signal from sh coefficients. There are two ways of

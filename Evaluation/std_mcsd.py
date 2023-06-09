@@ -24,18 +24,20 @@ from mrtrix_functions import save_to_mrtrix_format
 
 
 def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
-    # data, affine = load_nifti(fpath)
-    # bvals, bvecs = read_bvals_bvecs(bvals_path, bvecs_path)
-    # gtab = gradient_table(bvals, bvecs)
+    data, affine = load_nifti(fpath)
+    bvals, bvecs = read_bvals_bvecs(bvals_path, bvecs_path)
+    gtab = gradient_table(bvals, bvecs)
 
     data, gtab = single_network_sscsd.load_data()
+    mask_path = None
 
     if mask_path is not None:
         mask, affine = load_nifti(mask_path)
         mask = mask.astype(bool)
     else:
         # mask = np.ones(data[..., 0].shape).astype(bool)
-        b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+        # b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+        b0_mask, mask = median_otsu(data, median_radius=4, numpass=4, vol_idx=[0, 1])
         affine = None
 
     sphere = get_sphere('symmetric724')
@@ -78,10 +80,10 @@ def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
         tenmodel = dti.TensorModel(gtab)
         tenfit = tenmodel.fit(data, mask=mask)
 
-        FA = np.max(fractional_anisotropy(tenfit.evals))
+        # FA = np.max(fractional_anisotropy(tenfit.evals))
 
         mask_wm, mask_gm, mask_csf = mask_for_response_msmt(gtab, data, roi_radii=10,
-                                                            wm_fa_thr=0.7 * FA,
+                                                            wm_fa_thr=0.7,
                                                             gm_fa_thr=0.3,
                                                             csf_fa_thr=0.15,
                                                             gm_md_thr=0.001,
@@ -109,11 +111,11 @@ def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
         # np.save(f, [response_wm, response_gm, response_csf])
 
     mcsd_model = MultiShellDeconvModel(gtab, response_mcsd, sh_order=l_max)
-    mcsd_fit = mcsd_model.fit(denoised_arr)
+    mcsd_fit = mcsd_model.fit(denoised_arr[:, :, 39:40, :])
     mcsd_pred = mcsd_fit.predict()
     mcsd_odf = mcsd_fit.odf(sphere)
 
-    save_nifti(save_path + '/odfs.nii.gz', mcsd_odf, affine)
+    save_nifti(save_path + '/odfs.nii.gz', mcsd_odf, None)
 
     """
     dipy_peak_extraction.peak_extraction(
@@ -126,7 +128,7 @@ def main(fpath, bvals_path, bvecs_path, mask_path, l_max, save_path):
     )
     """
 
-    save_to_mrtrix_format(mcsd_fit.all_shm_coeff, l_max, sphere, affine, save_path)
+    save_to_mrtrix_format(mcsd_fit.all_shm_coeff[..., 2:], l_max, sphere, None, save_path)
 
 
 if __name__ == '__main__':

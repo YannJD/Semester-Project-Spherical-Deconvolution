@@ -8,6 +8,7 @@ from dipy.data import get_sphere, get_fnames
 from dipy.denoise.localpca import mppca
 from dipy.io.gradients import read_bvals_bvecs
 from dipy.io.image import load_nifti
+from dipy.reconst import shm
 from dipy.reconst.csdeconv import auto_response_ssst
 from dipy.segment.mask import median_otsu
 from dipy.viz import window, actor
@@ -29,6 +30,7 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
 
     # Load dMRI volumes with all directions and b-values
     data, gtab = load_data()
+    mask_path = None
     # data, gtab = load_phantom_data()
     # data, gtab = multi_network_sscsd.load_from_path(fname, bvals, bvecs)
 
@@ -38,8 +40,8 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
         mask = mask.astype(bool)
     else:
         # mask = np.ones(data[..., 0].shape).astype(bool)
-        b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
-        # b0_mask, mask = median_otsu(data, median_radius=4, numpass=4, vol_idx=[0, 1])  # TODO: choose parameters
+        # b0_mask, mask = median_otsu(data, median_radius=2, numpass=1, vol_idx=[0, 1])
+        b0_mask, mask = median_otsu(data, median_radius=4, numpass=4, vol_idx=[0, 1])  # TODO: choose parameters
 
     nb_b0 = np.sum(gtab.bvals == 0)
 
@@ -93,7 +95,7 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
     nn_model.load_state_dict(torch.load(saved_weights))
 
     # fODF prediction
-    
+
     odf, odf_sh = compute_odf_functions(nn_model.evaluate_odf_sh,
                                         data.astype(np.float32),
                                         mask,
@@ -103,8 +105,8 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
                                         iso,
                                         save_to)
 
-
     mrtrix_functions.save_to_mrtrix_format(odf_sh[..., iso:], l_max, sphere, None, save_to)
+
     """
     peak_extraction(
         save_to + '/odfs.nii.gz',
@@ -115,7 +117,7 @@ def main(fname, bvals, bvecs, mask_path, l_max, single_fiber, save_to):
         max_peak_number=3
     )"""
 
-    # plot_wm_odfs(odf, sphere)
+    plot_wm_odfs(odf, sphere)
 
 
 def train_network(data, nn_arch, kernel, B, M, b0_mean, device, saved_weights):
@@ -192,8 +194,8 @@ def parse_args():
 
 
 def load_data():  # TODO : make different load methods
-    fraw, fbval, fbvec, t1_fname = get_fnames('cfin_multib')
-    # fraw, fbval, fbvec = get_fnames('stanford_hardi')
+    # fraw, fbval, fbvec, t1_fname = get_fnames('cfin_multib')
+    fraw, fbval, fbvec = get_fnames('stanford_hardi')
     # fraw, fbval, fbvec = get_fnames('sherbrooke_3shell')
 
     data, affine = load_nifti(fraw)

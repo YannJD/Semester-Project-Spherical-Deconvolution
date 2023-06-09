@@ -187,10 +187,10 @@ def get_ms_response(data, denoised_data, mask, gtab, sphere, l_max, save_path):
     tenmodel = dti.TensorModel(gtab)
     tenfit = tenmodel.fit(data, mask=mask)
 
-    FA = np.max(fractional_anisotropy(tenfit.evals))
+    # FA = np.max(fractional_anisotropy(tenfit.evals))
 
     mask_wm, mask_gm, mask_csf = mask_for_response_msmt(gtab, data, roi_radii=10,
-                                                        wm_fa_thr=0.7 * FA,
+                                                        wm_fa_thr=0.7,
                                                         gm_fa_thr=0.3,
                                                         csf_fa_thr=0.15,
                                                         gm_md_thr=0.001,
